@@ -1,18 +1,18 @@
 // adapted from https://github.com/preactjs/signals/blob/main/packages/core/test/signal.test.tsx
 
 import { vi, it, expect } from "vitest";
-import { root, tick, FlatSignals } from "../src/index.js";
+import { root, tick, signal } from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
   root(() => {
-    const a = new FlatSignals("a");
-    const b = new FlatSignals("b");
+    const a = signal("a");
+    const b = signal("b");
 
     const compute = vi.fn(() => {
       // debugger;
       return a.val + b.val;
     });
-    const c = new FlatSignals(compute);
+    const c = signal(compute);
 
     expect(c.val).toBe("ab");
     expect(compute).toHaveBeenCalledOnce();
@@ -34,13 +34,13 @@ it("should drop A->B->A updates", async () => {
     //     C
     //     |
     //     D
-    const a = new FlatSignals(2);
+    const a = signal(2);
 
-    const b = new FlatSignals(() => a.val - 1);
-    const c = new FlatSignals(() => a.val + b.val);
+    const b = signal(() => a.val - 1);
+    const c = signal(() => a.val + b.val);
 
     const compute = vi.fn(() => "d: " + c.val);
-    const d = new FlatSignals(compute);
+    const d = signal(compute);
 
     // Trigger read
     expect(d.val).to.equal("d: 3");
@@ -53,7 +53,7 @@ it("should drop A->B->A updates", async () => {
   })
 });
 
-it("should only update every new signal once (diamond graph)", () => {
+it("should only update every signal once (diamond graph)", () => {
   root(() => {
     // In this scenario "D" should only update once when "A" receives
     // an update. This is sometimes referred to as the "diamond" scenario.
@@ -62,12 +62,12 @@ it("should only update every new signal once (diamond graph)", () => {
     //  B     C
     //   \   /
     //     D
-    const a = new FlatSignals("a");
-    const b = new FlatSignals(() => a.val);
-    const c = new FlatSignals(() => a.val);
+    const a = signal("a");
+    const b = signal(() => a.val);
+    const c = signal(() => a.val);
 
     const spy = vi.fn(() => b.val + " " + c.val);
-    const d = new FlatSignals(spy);
+    const d = signal(spy);
 
     expect(d.val).to.equal("a a");
     expect(spy).toHaveBeenCalledOnce();
@@ -78,7 +78,7 @@ it("should only update every new signal once (diamond graph)", () => {
   })
 });
 
-it("should only update every new FlatSignals once (diamond graph + tail)", () => {
+it("should only update every signal once (diamond graph + tail)", () => {
   root(() => {
     // "E" will be likely updated twice if our mark+sweep logic is buggy.
     //     A
@@ -88,14 +88,14 @@ it("should only update every new FlatSignals once (diamond graph + tail)", () =>
     //     D
     //     |
     //     E
-    const a = new FlatSignals("a");
-    const b = new FlatSignals(() => a.val);
-    const c = new FlatSignals(() => a.val);
+    const a = signal("a");
+    const b = signal(() => a.val);
+    const c = signal(() => a.val);
 
-    const d = new FlatSignals(() => b.val + " " + c.val);
+    const d = signal(() => b.val + " " + c.val);
 
     const spy = vi.fn(() => d.val);
-    const e = new FlatSignals(spy);
+    const e = signal(spy);
 
     expect(e.val).to.equal("a a");
     expect(spy).toHaveBeenCalledOnce();
@@ -111,14 +111,14 @@ it("should only update every new FlatSignals once (diamond graph + tail)", () =>
 //   root(() => {
 //     // Bail out if value of "B" never changes
 //     // A->B->C
-//     const a = new FlatSignals("a");
-//     const b = new FlatSignals(() => {
+//     const a = signal("a");
+//     const b = signal(() => {
 //       a.val;
 //       return "foo";
 //     });
 
 //     const spy = vi.fn(() => b.val);
-//     const c = new FlatSignals(spy);
+//     const c = signal(spy);
 
 //     expect(c.val).to.equal("foo");
 //     expect(spy).toHaveBeenCalledOnce();
@@ -129,7 +129,7 @@ it("should only update every new FlatSignals once (diamond graph + tail)", () =>
 //   })
 // });
 
-it("should only update every new signal once (jagged diamond graph + tails)", () => {
+it("should only update every signal once (jagged diamond graph + tails)", () => {
   root(() => {
     // "F" and "G" will be likely updated twice if our mark+sweep logic is buggy.
     //     A
@@ -141,20 +141,20 @@ it("should only update every new signal once (jagged diamond graph + tails)", ()
     //     E
     //   /   \
     //  F     G
-    const a = new FlatSignals("a");
+    const a = signal("a");
 
-    const b = new FlatSignals(() => a.val);
-    const c = new FlatSignals(() => a.val);
+    const b = signal(() => a.val);
+    const c = signal(() => a.val);
 
-    const d = new FlatSignals(() => c.val);
+    const d = signal(() => c.val);
 
     const eSpy = vi.fn(() => b.val + " " + d.val);
-    const e = new FlatSignals(eSpy);
+    const e = signal(eSpy);
 
     const fSpy = vi.fn(() => e.val);
-    const f = new FlatSignals(fSpy);
+    const f = signal(fSpy);
     const gSpy = vi.fn(() => e.val);
-    const g = new FlatSignals(gSpy);
+    const g = signal(gSpy);
 
     expect(f.val).to.equal("a a");
     expect(fSpy).toHaveBeenCalledOnce();
@@ -204,11 +204,11 @@ it("should only subscribe to signals listened to", () => {
     //    *A
     //   /   \
     // *B     C <- we don't listen to C
-    const a = new FlatSignals("a");
+    const a = signal("a");
 
-    const b = new FlatSignals(() => a.val);
+    const b = signal(() => a.val);
     const spy = vi.fn(() => a.val);
-    new FlatSignals(spy);
+    signal(spy);
 
     expect(b.val).to.equal("a");
     expect(spy).not.toHaveBeenCalled();
@@ -229,17 +229,17 @@ it("should only subscribe to signals listened to", () => {
     // *B     D <- we don't listen to C
     //  |
     // *C
-    const a = new FlatSignals("a");
+    const a = signal("a");
     const spyB = vi.fn(() => a.val);
-    const b = new FlatSignals(spyB);
+    const b = signal(spyB);
 
     const spyC = vi.fn(() => b.val);
-    const c = new FlatSignals(spyC);
+    const c = signal(spyC);
 
-    const d = new FlatSignals(() => a.val);
+    const d = signal(() => a.val);
 
     let result = "";
-    const unsub = new FlatSignals(() => (result = c.val), true);
+    const unsub = signal(() => (result = c.val), true);
     tick();
 
     expect(result).to.equal("a");
@@ -268,14 +268,14 @@ it("should ensure subs update even if one dep unmarks it", () => {
     //  B     *C <- returns same value every time
     //   \   /
     //     D
-    const a = new FlatSignals("a");
-    const b = new FlatSignals(() => a.val);
-    const c = new FlatSignals(() => {
+    const a = signal("a");
+    const b = signal(() => a.val);
+    const c = signal(() => {
       a.val;
       return "c";
     });
     const spy = vi.fn(() => b.val + " " + c.val);
-    const d = new FlatSignals(spy);
+    const d = signal(spy);
     expect(d.val).to.equal("a c");
     spy.mockClear();
 
@@ -295,18 +295,18 @@ it("should ensure subs update even if two deps unmark it", () => {
     //  B *C *D
     //   \ | /
     //     E
-    const a = new FlatSignals("a");
-    const b = new FlatSignals(() => a.val);
-    const c = new FlatSignals(() => {
+    const a = signal("a");
+    const b = signal(() => a.val);
+    const c = signal(() => {
       a.val;
       return "c";
     });
-    const d = new FlatSignals(() => {
+    const d = signal(() => {
       a.val;
       return "d";
     });
     const spy = vi.fn(() => b.val + " " + c.val + " " + d.val);
-    const e = new FlatSignals(spy);
+    const e = signal(spy);
     expect(e.val).to.equal("a c d");
     spy.mockClear();
 

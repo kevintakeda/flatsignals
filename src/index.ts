@@ -1,8 +1,8 @@
-let PREV_OWNER: Array<FlatSignals> | null = null,
-  OWNER: Array<FlatSignals> | null = null,
+let PREV_OWNER: Array<FS> | null = null,
+  OWNER: Array<FS> | null = null,
   A: number | null = null,
   I = 0,
-  EFFECT_QUEUE: Array<FlatSignals> = [],
+  EFFECT_QUEUE: Array<FS> = [],
   QUEUED = false;
 
 export function root<T>(fn: () => T) {
@@ -13,8 +13,8 @@ export function root<T>(fn: () => T) {
   PREV_OWNER = null;
   return result
 }
-export class FlatSignals<T = unknown> {
-  #r: Array<FlatSignals> = OWNER!;
+export class FS<T = unknown> {
+  #r: Array<FS> = OWNER!;
   #id: number = 0;
   #sources: number = 0;
   #val: T | undefined
@@ -36,7 +36,7 @@ export class FlatSignals<T = unknown> {
     }
   }
 
-  get val() {
+  get val(): T {
     if (this.#fn && this.#dirty) {
       let started = false;
       if (A === null) {
@@ -52,7 +52,7 @@ export class FlatSignals<T = unknown> {
     return this.#val as T
   }
 
-  set val(val: T) {
+  set val(val: T | null) {
     if (val === this.#val) return;
     const mask = 1 << this.#id;
     this.#fn = null;
@@ -62,7 +62,7 @@ export class FlatSignals<T = unknown> {
         if (item.#effect) EFFECT_QUEUE.push(item);
       }
     }
-    this.#val = val;
+    this.#val = val as T;
   }
 }
 
@@ -76,4 +76,8 @@ export function queueTick() {
     QUEUED = true;
     queueMicrotask(() => (tick(), QUEUED = false));
   }
+}
+
+export function signal<T = unknown>(val: T | (() => T), effect?: boolean) {
+  return new FS(val, effect)
 }

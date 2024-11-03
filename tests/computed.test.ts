@@ -148,15 +148,14 @@ test("branching (updates and runs once)", () => {
 });
 
 
-// In this graph A1 source should be independent of B2 computed.
-// A1  B1
-// |   |
-// A2  B2
-//  \  /
-//   X
-// Note: IT FAILS. If X is read, A1 changes will also make B2 dirty.
-test("track depencies optimally (FAILING)", { fails: true }, () => {
+test("track dependencies optimally", () => {
   root(() => {
+    // After X is read changing A1 source shouldn't affect B2 computed.
+    // A1  B1
+    // |   |
+    // A2  B2
+    //  \  /
+    //   X
     const a1 = signal("a");
     const a2Spy = vi.fn(() => a1.val);
     const a2 = signal(a2Spy);
@@ -171,12 +170,14 @@ test("track depencies optimally (FAILING)", { fails: true }, () => {
     expect(a2Spy).toBeCalledTimes(1);
     expect(b2Spy).toBeCalledTimes(1);
 
+    b2Spy.mockClear();
     b2.val;
-    expect(b2Spy).toBeCalledTimes(1);
+    expect(b2Spy).toBeCalledTimes(0);
     a1.val = "a!"; // updating A shouldn't affect B
     b2.val;
-    expect(b2Spy).toBeCalledTimes(1);
+    expect(b2Spy).toBeCalledTimes(0);
 
+    a2Spy.mockClear();
     a2.val;
     expect(a2Spy).toBeCalledTimes(1);
     b1.val = "b!"; // updating B shouldn't affect A

@@ -51,37 +51,3 @@ test("should dispose of inner computations", () => {
   expect(_memo).toHaveBeenCalledTimes(1);
   expect(_effect).toHaveBeenCalledTimes(0);
 });
-
-test("move signal to other root (experimental)", () => {
-  const spy1 = vi.fn()
-  const spy2 = vi.fn()
-  root(() => {
-    signal()
-    signal()
-    const a = signal("a")
-    const b = signal(() => a.val);
-    effect(() => {
-      spy2();
-      return b.val;
-    });
-    tick();
-    expect(spy2).toBeCalledTimes(1);
-    root(() => {
-      a.move();
-      const b = signal(() => a.val);
-      effect(() => {
-        spy1();
-        return b.val;
-      });
-      a.val = "a!";
-      tick();
-      expect(spy1).toBeCalledTimes(1);
-      expect(b.val).toBe("a!");
-    })
-    tick(); // noop
-    a.val = "a!!"
-    tick();
-    expect(spy2).toBeCalledTimes(1);
-    expect(b.val).toBe("a");
-  });
-});

@@ -14,14 +14,16 @@ import {
   tick as mtick,
 } from "@maverick-js/signals";
 
+export interface FrameworkSignal<T = unknown> {
+  get(): T;
+  set(v: T): void;
+}
+export interface FrameworkComputed<T = unknown> {
+  get(): T;
+}
 export interface FrameworkBenchmarkApi {
-  signal<T>(val: T): {
-    get(): T;
-    set(v: T): void;
-  };
-  computed<T>(fn: () => T): {
-    get(): T;
-  };
+  signal<T>(val: T): FrameworkSignal<T>;
+  computed<T>(fn: () => T): FrameworkComputed<T>;
   effect(fn: () => void): void;
   runSync<T>(fn: () => T): void;
   root<T>(fn: () => T): T;

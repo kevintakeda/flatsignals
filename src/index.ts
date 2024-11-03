@@ -2,15 +2,19 @@ let PREV_ROOT: Root | null = null,
   ROOT: Root | null = null,
   EFFECT_QUEUE: Array<FlatSignal> = [],
   QUEUED = false,
-  SCHEDULE: (() => void) | undefined;
+  SCHEDULER: (() => void) | undefined;
 
 class Root {
   computeds: Array<FlatSignal> = [];
   disposals: Array<() => void> = [];
   children: Array<Root> = [];
-  accessed: number | null = null;
-  i = 0;
+  #i = 0;
+
+  tracking: Array<FlatSignal> = [];
+  current: FlatSignal | null = null;
+
   #disposing: boolean = false;
+
   dispose() {
     if (this.#disposing) return;
     this.#disposing = true;
@@ -20,7 +24,11 @@ class Root {
     this.disposals = [];
     this.computeds = [];
     this.children = [];
-    this.i = 0;
+    this.#i = 0;
+  }
+
+  add() {
+    return 1 << this.#i++;
   }
 }
 
@@ -33,55 +41,63 @@ export function root<T>(fn: (dispose: () => void) => T) {
   return result
 }
 
-const IS_DIRTY = 1 << 31;
-const IS_EFFECT = 1 << 30;
-
 export class FlatSignal<T = unknown> {
   #root: Root = ROOT ?? new Root();
-  #id: number = 1;
-  #sources: number = IS_DIRTY;
+  #id: number = 0;
+  #sources: number = 0;
   #val: T | undefined | null;
   #fn: (() => T) | null = null;
+  #tick: (() => void) | undefined = SCHEDULER;
+  #isDirty = true;
+  #isEffect: boolean = false;
+  onDispose: (() => void) | null = null;
   equals = (a: unknown, b: unknown) => a === b;
+
   constructor(val?: T | (() => T), effect?: boolean) {
     if (typeof val === "function") {
       this.#fn = val as () => T;
       this.#root.computeds.push(this) - 1;
       if (effect) {
-        this.#sources |= IS_EFFECT;
+        this.#isEffect = effect;
         EFFECT_QUEUE.push(this)
       }
     } else {
       this.#val = val;
-      if (this.#root.i >= 30) throw new Error();
-      if (this.#root) this.#id <<= this.#root.i++;
+      this.#id = this.#root.add();
     }
   }
 
   get val(): T {
-    if (this.#fn && (this.#sources & IS_DIRTY) !== 0) {
-      let started = false;
-      if (this.#root.accessed === null) {
-        this.#root.accessed = 0;
-        started = true
-      }
+    if (this.#fn && this.#isDirty) {
+
+      const prevCurrent = this.#root.current;
+      this.#root.current = this;
+      this.#root.tracking.push(this);
+
+      this.#sources = 0;
       this.#val = this.#fn();
-      this.#sources = this.#root.accessed | (this.#sources & IS_EFFECT & ~IS_DIRTY);
-      if (started && this.#root) {
-        this.#root.accessed = null;
+      this.#isDirty = false;
+
+      this.#root.current = prevCurrent;
+      this.#root.tracking.pop();
+
+    } else {
+      for (const el of this.#root.tracking) {
+        el.#sources |= this.#id
       }
-    } else if (this.#root.accessed !== null) this.#root.accessed |= this.#id
+    }
     return this.#val as T
   }
 
   set val(val: T | null) {
+    if (this.#fn) return;
     if (this.equals(val, this.#val)) return;
     for (const item of this.#root.computeds) {
-      if ((item.#sources & this.#id) !== 0 && (item.#sources & IS_DIRTY) === 0) {
-        item.#sources |= IS_DIRTY;
-        if ((item.#sources & IS_EFFECT) !== 0) {
+      if ((item.#sources & this.#id) !== 0 && !item.#isDirty) {
+        item.#isDirty = true;
+        if (item.#isEffect) {
           EFFECT_QUEUE.push(item);
-          SCHEDULE?.();
+          this.#tick?.();
         }
       }
     }
@@ -94,15 +110,12 @@ export class FlatSignal<T = unknown> {
     this.#root.computeds.pop();
   }
 
-  move() {
-    this.#disconnect();
-    if (ROOT) this.#root = ROOT;
-  }
-
   dispose(removeFromRoot = true) {
+    this.onDispose?.();
     if (removeFromRoot && this.#fn) {
       this.#disconnect();
     }
+    this.onDispose = null;
     this.#fn = null;
     this.val = null;
   }
@@ -125,13 +138,22 @@ export function dispose() {
 }
 
 export function onDispose(fn: () => void) {
-  ROOT?.disposals.push(fn);
+  const current = ROOT?.current;
+  if (current && !current.onDispose) {
+    current.onDispose = fn;
+  } else {
+    ROOT?.disposals.push(fn);
+  }
+}
+
+export function autoTick(fn = queueTick) {
+  SCHEDULER = fn;
 }
 
 export function signal<T = unknown>(val?: T | (() => T)) {
   return new FlatSignal(val)
 }
 
-export function effect<T = unknown>(val?: T | (() => T)) {
-  return new FlatSignal(val, true)
+export function effect<T = unknown>(fn: (() => T)) {
+  return new FlatSignal(fn, true)
 }

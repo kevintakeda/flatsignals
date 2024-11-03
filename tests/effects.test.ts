@@ -1,13 +1,13 @@
 
 import { vi, expect, test } from "vitest";
-import { root, signal, tick } from "../src/index.js";
+import { effect, root, signal, tick } from "../src/index.js";
 
 test("effects", () => {
   root(() => {
     const a = signal(1);
     const b = signal(2);
     const cSpy = vi.fn(() => a.val + b.val);
-    const c = signal(cSpy, true);
+    const c = effect(cSpy);
     expect(cSpy).toHaveBeenCalledTimes(0);
     expect(c.val).toBe(3);
     expect(c.val).toBe(3);
@@ -23,15 +23,15 @@ test("effects", () => {
   })
 });
 
-test("unsubscribe invisible dependencies (effects)", () => {
+test("unsubscribe invisible dependencies", () => {
   root(() => {
     const a = signal(true);
     const b = signal("b");
     const c = signal("c");
-    const d = signal(() => b.val, true);
-    const e = signal(() => c.val, true);
+    const d = effect(() => b.val);
+    const e = effect(() => c.val);
     const fSpy = vi.fn(() => a.val ? d.val : e.val);
-    const f = signal(fSpy, true);
+    const f = effect(fSpy);
 
     expect(f.val).toBe("b");
     expect(fSpy).toHaveBeenCalledTimes(1);
@@ -59,11 +59,11 @@ test("nested effects run once", () => {
   root(() => {
     const a = signal(2);
     const spyB = vi.fn(() => a.val);
-    const b = signal(spyB, true);
+    const b = effect(spyB);
     const spyC = vi.fn(() => a.val);
-    const c = signal(spyC, true);
+    const c = effect(spyC);
     const spyD = vi.fn(() => a.val);
-    const d = signal(spyD, true);
+    const d = effect(spyD);
 
     // read a
     expect(a.val).toBe(2);
@@ -98,7 +98,7 @@ test("dispose effects", () => {
   root(() => {
     const a = signal("a");
     const bSpy = vi.fn(() => a.val);
-    const b = signal(bSpy, true);
+    const b = effect(bSpy);
     expect(bSpy).toHaveBeenCalledTimes(0);
 
     // read effect
@@ -110,7 +110,7 @@ test("dispose effects", () => {
     expect(bSpy).toHaveBeenCalledTimes(1);
 
     // dispose effect
-    b.val = null;
+    b.dispose();
     expect(b.val).toBe(null);
     expect(bSpy).toHaveBeenCalledTimes(1);
     a.val = "a!!";
@@ -121,7 +121,7 @@ test("dispose effects", () => {
   })
 });
 
-test("effect with conditions", () => {
+test("effect with conditional dependencies", () => {
   root(() => {
     const s1 = signal(true);
     const s2 = signal("a");
@@ -129,7 +129,7 @@ test("effect with conditions", () => {
     const s4 = signal(() => s2.val);
     const s5 = signal(() => s3.val);
     let result = { val: 0 };
-    signal(
+    effect(
       () => {
         if (s1.val) {
           s4.val;
@@ -138,8 +138,7 @@ test("effect with conditions", () => {
           s5.val;
           result.val = 0;
         }
-      },
-      true
+      }
     );
     s1.val = false;
     tick();
@@ -150,7 +149,7 @@ test("effect with conditions", () => {
   })
 });
 
-test("effect with nested dependencies", () => {
+test("effect with deep dependencies", () => {
   root(() => {
     const a = signal(2);
     const spyB = vi.fn(() => a.val + 1);
@@ -160,7 +159,7 @@ test("effect with nested dependencies", () => {
     const spyD = vi.fn(() => c.val);
     const d = signal(spyD);
     const spyE = vi.fn(() => d.val);
-    signal(spyE, true);
+    effect(spyE);
     tick();
     expect(spyE).toHaveBeenCalledTimes(1);
     a.val = 4;

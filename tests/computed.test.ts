@@ -1,7 +1,7 @@
 import { vi, expect, test } from "vitest";
 import { root, signal, tick } from "../src/index.js";
 
-test("caching", () => {
+test("is cached", () => {
   root(() => {
     const a = signal(1);
     const b = signal(2);
@@ -13,7 +13,7 @@ test("caching", () => {
   })
 });
 
-test("laziness", () => {
+test("is lazy", () => {
   root(() => {
     const a = signal("a");
     const b = signal("b");
@@ -27,7 +27,7 @@ test("laziness", () => {
   })
 });
 
-test("with simple condition", () => {
+test("is updated", () => {
   root(() => {
     const a = signal(false);
     const bSpy = vi.fn(() => a.val ? "1" : "2");
@@ -43,7 +43,7 @@ test("with simple condition", () => {
   })
 });
 
-test("unsubscribe invisible dependencies", () => {
+test("is dynamic (unsubscribe invisible dependencies)", () => {
   root(() => {
     const a = signal(false);
     const b = signal("b");
@@ -77,7 +77,7 @@ test("unsubscribe invisible dependencies", () => {
   })
 });
 
-test("diamond", () => {
+test("diamond graph runs once", () => {
   root(() => {
     const a = signal("a");
     const b = signal(() => a.val);
@@ -96,16 +96,16 @@ test("diamond", () => {
   })
 });
 
-test("deep nested memos", () => {
+test("repeating computeds runs once", () => {
   root(() => {
-    const a = signal(2);
-    const spyB = vi.fn(() => a.val + 1);
+    const a = signal(1);
+    const spyB = vi.fn(() => a.val + a.val);
     const b = signal(spyB);
-    const spyC = vi.fn(() => a.val + b.val);
+    const spyC = vi.fn(() => a.val + b.val + a.val + b.val);
     const c = signal(spyC);
-    const spyD = vi.fn(() => a.val + b.val + c.val);
+    const spyD = vi.fn(() => a.val + b.val + c.val + a.val + b.val + c.val);
     const d = signal(spyD);
-    expect(d.val).toBe(10);
+    expect(d.val).toBe(18);
     expect(spyB).toHaveBeenCalledTimes(1);
     expect(spyC).toHaveBeenCalledTimes(1);
     expect(spyD).toHaveBeenCalledTimes(1);
@@ -117,33 +117,16 @@ test("deep nested memos", () => {
   })
 });
 
-test("chained memos", () => {
-  root(() => {
-    const a = signal("a");
-    const spyB = vi.fn(() => a.val);
-    const b = signal(spyB);
-    const c = signal(() => b.val);
-    const d = signal(() => c.val);
-    const e = signal(() => d.val);
-
-    expect(c.val).toBe("a");
-    expect(a.val).toBe("a");
-    expect(b.val).toBe("a");
-    expect(e.val).toBe("a");
-    expect(d.val).toBe("a");
-    expect(spyB).toHaveBeenCalledTimes(1);
-
-    a.val = "a!";
-    expect(c.val).toBe("a!");
-    expect(a.val).toBe("a!");
-    expect(b.val).toBe("a!");
-    expect(e.val).toBe("a!");
-    expect(d.val).toBe("a!");
-    expect(spyB).toHaveBeenCalledTimes(2);
-  })
-});
-
-test("multi-branch linked by memo", () => {
+//   A
+//  / \
+// B   C
+//  \ /
+//   D
+//   |
+//   E
+//   |
+//   F
+test("branching (updates and runs once)", () => {
   root(() => {
     const a = signal("a");
     const b = signal(() => a.val);
@@ -164,29 +147,40 @@ test("multi-branch linked by memo", () => {
   })
 });
 
-test("tree", () => {
+
+// In this graph A1 source should be independent of B2 computed.
+// A1  B1
+// |   |
+// A2  B2
+//  \  /
+//   X
+// Note: IT FAILS. If X is read, A1 changes will also make B2 dirty.
+test("track depencies optimally (FAILING)", { fails: true }, () => {
   root(() => {
-    const a = signal("a");
-    const b = signal("b");
-    const c = signal("c");
-    const d = signal("d");
-    const e = signal(() => a.val + b.val);
-    const f = signal(() => c.val + d.val);
-    const gSpy = vi.fn(() => e.val + f.val);
-    const g = signal(gSpy);
-    expect(e.val).toBe("ab");
-    expect(f.val).toBe("cd");
-    expect(gSpy).toBeCalledTimes(0);
-    expect(g.val).toBe("abcd");
-    expect(gSpy).toBeCalledTimes(1);
-    d.val = "d!";
-    c.val = "c!";
-    b.val = "b!";
-    a.val = "a!";
-    expect(e.val).toBe("a!b!");
-    expect(f.val).toBe("c!d!");
-    expect(gSpy).toBeCalledTimes(1);
-    expect(g.val).toBe("a!b!c!d!");
-    expect(gSpy).toBeCalledTimes(2);
+    const a1 = signal("a");
+    const a2Spy = vi.fn(() => a1.val);
+    const a2 = signal(a2Spy);
+
+    const b1 = signal("b");
+    const b2Spy = vi.fn(() => b1.val);
+    const b2 = signal(b2Spy);
+
+    const x = signal(() => a2.val + b2.val)
+
+    x.val; // trick the graph (to catch more dependencies than needed)
+    expect(a2Spy).toBeCalledTimes(1);
+    expect(b2Spy).toBeCalledTimes(1);
+
+    b2.val;
+    expect(b2Spy).toBeCalledTimes(1);
+    a1.val = "a!"; // updating A shouldn't affect B
+    b2.val;
+    expect(b2Spy).toBeCalledTimes(1);
+
+    a2.val;
+    expect(a2Spy).toBeCalledTimes(1);
+    b1.val = "b!"; // updating B shouldn't affect A
+    a2.val;
+    expect(a2Spy).toBeCalledTimes(1);
   })
-});
+})

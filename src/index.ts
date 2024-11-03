@@ -1,68 +1,110 @@
-let PREV_OWNER: Array<FS> | null = null,
-  OWNER: Array<FS> | null = null,
-  A: number | null = null,
-  I = 0,
-  EFFECT_QUEUE: Array<FS> = [],
-  QUEUED = false;
+let PREV_ROOT: Root | null = null,
+  ROOT: Root | null = null,
+  EFFECT_QUEUE: Array<FlatSignal> = [],
+  QUEUED = false,
+  SCHEDULE: (() => void) | undefined;
 
-export function root<T>(fn: () => T) {
-  PREV_OWNER = OWNER; I = 0;
-  if (!OWNER) OWNER = []
-  const result = fn();
-  OWNER = PREV_OWNER;
-  PREV_OWNER = null;
+class Root {
+  computeds: Array<FlatSignal> = [];
+  disposals: Array<() => void> = [];
+  children: Array<Root> = [];
+  accessed: number | null = null;
+  i = 0;
+  #disposing: boolean = false;
+  dispose() {
+    if (this.#disposing) return;
+    this.#disposing = true;
+    for (const el of this.disposals) el();
+    for (const el of this.computeds) el.dispose(false);
+    for (const el of this.children) el.dispose();
+    this.disposals = [];
+    this.computeds = [];
+    this.children = [];
+    this.i = 0;
+  }
+}
+
+export function root<T>(fn: (dispose: () => void) => T) {
+  PREV_ROOT = ROOT;
+  ROOT = new Root();
+  if (PREV_ROOT) PREV_ROOT.children.push(ROOT);
+  const result = fn(ROOT.dispose.bind(ROOT));
+  ROOT = PREV_ROOT; PREV_ROOT = null;
   return result
 }
-export class FS<T = unknown> {
-  #r: Array<FS> = OWNER!;
-  #id: number = 0;
-  #sources: number = 0;
-  #val: T | undefined
+
+const IS_DIRTY = 1 << 31;
+const IS_EFFECT = 1 << 30;
+
+export class FlatSignal<T = unknown> {
+  #root: Root = ROOT ?? new Root();
+  #id: number = 1;
+  #sources: number = IS_DIRTY;
+  #val: T | undefined | null;
   #fn: (() => T) | null = null;
-  #dirty = true;
-  #effect: boolean = false;
-  constructor(val: T | (() => T), effect?: boolean) {
+  equals = (a: unknown, b: unknown) => a === b;
+  constructor(val?: T | (() => T), effect?: boolean) {
     if (typeof val === "function") {
       this.#fn = val as () => T;
-      this.#r.push(this)
+      this.#root.computeds.push(this) - 1;
       if (effect) {
-        this.#effect = effect;
+        this.#sources |= IS_EFFECT;
         EFFECT_QUEUE.push(this)
       }
     } else {
       this.#val = val;
-      this.#id = I++;
-      if (this.#id > 32) throw new Error()
+      if (this.#root.i >= 30) throw new Error();
+      if (this.#root) this.#id <<= this.#root.i++;
     }
   }
 
   get val(): T {
-    if (this.#fn && this.#dirty) {
+    if (this.#fn && (this.#sources & IS_DIRTY) !== 0) {
       let started = false;
-      if (A === null) {
-        A = 0;
+      if (this.#root.accessed === null) {
+        this.#root.accessed = 0;
         started = true
       }
-      this.#sources = 0;
       this.#val = this.#fn();
-      this.#dirty = false;
-      this.#sources |= A;
-      if (started) A = null;
-    } else if (A !== null) A |= 1 << this.#id
+      this.#sources = this.#root.accessed | (this.#sources & IS_EFFECT & ~IS_DIRTY);
+      if (started && this.#root) {
+        this.#root.accessed = null;
+      }
+    } else if (this.#root.accessed !== null) this.#root.accessed |= this.#id
     return this.#val as T
   }
 
   set val(val: T | null) {
-    if (val === this.#val) return;
-    const mask = 1 << this.#id;
-    this.#fn = null;
-    for (const item of this.#r) {
-      if ((item.#sources & mask) !== 0) {
-        item.#dirty = true;
-        if (item.#effect) EFFECT_QUEUE.push(item);
+    if (this.equals(val, this.#val)) return;
+    for (const item of this.#root.computeds) {
+      if ((item.#sources & this.#id) !== 0 && (item.#sources & IS_DIRTY) === 0) {
+        item.#sources |= IS_DIRTY;
+        if ((item.#sources & IS_EFFECT) !== 0) {
+          EFFECT_QUEUE.push(item);
+          SCHEDULE?.();
+        }
       }
     }
     this.#val = val as T;
+  }
+
+  #disconnect() {
+    const last = this.#root.computeds.length;
+    [this.#root.computeds[this.#id], this.#root.computeds[last]] = [this.#root.computeds[last], this.#root.computeds[this.#id]];
+    this.#root.computeds.pop();
+  }
+
+  move() {
+    this.#disconnect();
+    if (ROOT) this.#root = ROOT;
+  }
+
+  dispose(removeFromRoot = true) {
+    if (removeFromRoot && this.#fn) {
+      this.#disconnect();
+    }
+    this.#fn = null;
+    this.val = null;
   }
 }
 
@@ -78,6 +120,18 @@ export function queueTick() {
   }
 }
 
-export function signal<T = unknown>(val: T | (() => T), effect?: boolean) {
-  return new FS(val, effect)
+export function dispose() {
+  ROOT?.dispose();
+}
+
+export function onDispose(fn: () => void) {
+  ROOT?.disposals.push(fn);
+}
+
+export function signal<T = unknown>(val?: T | (() => T)) {
+  return new FlatSignal(val)
+}
+
+export function effect<T = unknown>(val?: T | (() => T)) {
+  return new FlatSignal(val, true)
 }

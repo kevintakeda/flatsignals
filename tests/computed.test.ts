@@ -134,7 +134,7 @@ test("branching (updates and runs once)", () => {
     const dSpy = vi.fn(() => b.val + c.val);
     const d = signal(dSpy);
     const e = signal(() => d.val);
-    const f = signal(() => d.val);
+    const f = signal(() => e.val);
 
     expect(e.val).toBe("aa");
     expect(f.val).toBe("aa");

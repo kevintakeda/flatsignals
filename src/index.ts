@@ -8,7 +8,7 @@ class Root {
   computeds: Array<FlatSignal> = [];
   disposals: Array<() => void> = [];
   children: Array<Root> = [];
-  #i = 0;
+  i = 0;
 
   tracking: Array<FlatSignal> = [];
   current: FlatSignal | null = null;
@@ -24,11 +24,7 @@ class Root {
     this.disposals = [];
     this.computeds = [];
     this.children = [];
-    this.#i = 0;
-  }
-
-  add() {
-    return 1 << this.#i++;
+    this.i = 0;
   }
 }
 
@@ -43,7 +39,7 @@ export function root<T>(fn: (dispose: () => void) => T) {
 
 export class FlatSignal<T = unknown> {
   #root: Root = ROOT ?? new Root();
-  #id: number = 0;
+  #id: number = 1;
   #sources: number = 0;
   #val: T | undefined | null;
   #fn: (() => T) | null = null;
@@ -56,31 +52,32 @@ export class FlatSignal<T = unknown> {
   constructor(val?: T | (() => T), effect?: boolean) {
     if (typeof val === "function") {
       this.#fn = val as () => T;
-      this.#root.computeds.push(this) - 1;
+      this.#root.computeds.push(this);
       if (effect) {
         this.#isEffect = effect;
         EFFECT_QUEUE.push(this)
       }
     } else {
       this.#val = val;
-      this.#id = this.#root.add();
+      this.#id = 1 << this.#root.i++;
     }
   }
 
   get val(): T {
-    if (this.#fn && this.#isDirty) {
-
+    if (this.#fn) {
       const prevCurrent = this.#root.current;
-      this.#root.current = this;
-      this.#root.tracking.push(this);
+      if (this.#isDirty) {
+        this.#root.current = this;
+        this.#root.tracking.push(this);
 
-      this.#sources = 0;
-      this.#val = this.#fn();
-      this.#isDirty = false;
+        this.#sources = 0;
+        this.#val = this.#fn();
+        this.#isDirty = false;
 
-      this.#root.current = prevCurrent;
-      this.#root.tracking.pop();
-
+        this.#root.current = prevCurrent;
+        this.#root.tracking.pop();
+      } else if (prevCurrent)
+        prevCurrent.#sources |= this.#id
     } else {
       for (const el of this.#root.tracking) {
         el.#sources |= this.#id

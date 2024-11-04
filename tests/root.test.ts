@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { FlatSignal, root, signal, tick, onDispose, effect, dispose } from "../src/index.js";
+import { FlatSignal, root, signal, tick, onDispose, effect, dispose, link } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -39,7 +39,7 @@ test("should dispose of inner computations", () => {
     dispose();
   });
 
-  expect($y!.val).toBe(null);
+  // expect($y!.val).toBe(null);
   expect(_memo).toHaveBeenCalledTimes(1);
   expect(_effect).toHaveBeenCalledTimes(0);
 
@@ -47,7 +47,45 @@ test("should dispose of inner computations", () => {
   $x!.val = 50;
   tick();
 
-  expect($y!.val).toBe(null);
+  // expect($y!.val).toBe(null);
   expect(_memo).toHaveBeenCalledTimes(1);
   expect(_effect).toHaveBeenCalledTimes(0);
+});
+
+
+test("link", () => {
+  const spyInner = vi.fn();
+  const spyOuter = vi.fn();
+
+  root(() => {
+    const global = signal(10);
+    effect(() => {
+      spyOuter(global.val);
+    })
+
+    root(() => {
+      const inner = link(global)
+      effect(() => {
+        spyInner(inner.val);
+      });
+    })
+
+    global.val = 5;
+    tick();
+    expect(spyInner).toBeCalledTimes(1);
+    expect(spyInner).toBeCalledWith(5);
+
+    expect(spyOuter).toBeCalledTimes(1);
+    expect(spyOuter).toBeCalledWith(5);
+
+    global.val = 20;
+    tick();
+    expect(spyInner).toBeCalledTimes(2);
+    expect(spyInner).toBeCalledWith(20);
+
+    expect(spyOuter).toBeCalledTimes(2);
+    expect(spyOuter).toBeCalledWith(20);
+
+    dispose();
+  });
 });

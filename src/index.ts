@@ -1,95 +1,100 @@
-let PREV_ROOT: Root | null = null,
-  ROOT: Root | null = null,
+let ROOT: Root | null = null,
   EFFECT_QUEUE: Array<FlatSignal> = [],
   QUEUED = false,
   SCHEDULER: (() => void) | undefined;
 
 class Root {
-  computeds: Array<FlatSignal> = [];
-  disposals: Array<() => void> = [];
-  children: Array<Root> = [];
-  i = 0;
+  _computeds: Array<FlatSignal> = [];
+  _disposals: Array<() => void> = [];
+  _children: Array<Root> = [];
+  _i = 0;
 
-  tracking: Array<FlatSignal> = [];
-  current: FlatSignal | null = null;
+  _tracking: Array<FlatSignal> = [];
+  _current: FlatSignal | null = null;
 
-  #disposing: boolean = false;
+  _disposing: boolean = false;
 
-  dispose() {
-    if (this.#disposing) return;
-    this.#disposing = true;
-    for (const el of this.disposals) el();
-    for (const el of this.computeds) el.dispose(false);
-    for (const el of this.children) el.dispose();
-    this.disposals = [];
-    this.computeds = [];
-    this.children = [];
-    this.i = 0;
+  _dispose() {
+    if (this._disposing) return;
+    this._disposing = true;
+    for (const el of this._disposals) el();
+    for (const el of this._computeds) el.dispose(false);
+    for (const el of this._children) el._dispose();
+    this._children = [];
+    this._computeds = [];
+    this._disposals = [];
+    this._i = 0;
+  }
+  _id() {
+    return 1 << this._i++
   }
 }
 
 export function root<T>(fn: (dispose: () => void) => T) {
-  PREV_ROOT = ROOT;
+  const prev = ROOT;
   ROOT = new Root();
-  if (PREV_ROOT) PREV_ROOT.children.push(ROOT);
-  const result = fn(ROOT.dispose.bind(ROOT));
-  ROOT = PREV_ROOT; PREV_ROOT = null;
+  if (prev) prev._children.push(ROOT);
+  const result = fn(ROOT._dispose.bind(ROOT));
+  ROOT = prev;
   return result
 }
 
 export class FlatSignal<T = unknown> {
   #root: Root = ROOT ?? new Root();
-  #id: number = 1;
+  #id: number;
   #sources: number = 0;
   #val: T | undefined | null;
   #fn: (() => T) | null = null;
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
   #isEffect: boolean = false;
-  onDispose: (() => void) | null = null;
+  #isDisposed: boolean = false;
+  _onDispose: (() => void) | null = null;
   equals = (a: unknown, b: unknown) => a === b;
 
   constructor(val?: T | (() => T), effect?: boolean) {
     if (typeof val === "function") {
       this.#fn = val as () => T;
-      this.#root.computeds.push(this);
+      this.#id = this.#root._computeds.push(this) - 1;
       if (effect) {
         this.#isEffect = effect;
         EFFECT_QUEUE.push(this)
       }
     } else {
       this.#val = val;
-      this.#id = 1 << this.#root.i++;
+      this.#id = this.#root._id();
     }
   }
 
   get val(): T {
-    if (this.#fn) {
-      const prevCurrent = this.#root.current;
-      if (this.#isDirty) {
-        this.#root.current = this;
-        this.#root.tracking.push(this);
+    if (!this.#isDisposed)
+      if (this.#fn) {
+        const prevCurrent = this.#root._current;
+        if (this.#isDirty) {
+          this.#root._current = this;
+          this.#root._tracking.push(this);
 
-        this.#sources = 0;
-        this.#val = this.#fn();
-        this.#isDirty = false;
+          this.#sources = 0;
+          this.#val = this.#fn();
+          this.#isDirty = false;
 
-        this.#root.current = prevCurrent;
-        this.#root.tracking.pop();
-      } else if (prevCurrent)
-        prevCurrent.#sources |= this.#id
-    } else {
-      for (const el of this.#root.tracking) {
-        el.#sources |= this.#id
+          this.#root._current = prevCurrent;
+          this.#root._tracking.pop();
+        } else if (prevCurrent) {
+          prevCurrent.#sources |= this.#sources;
+        }
+      } else {
+        for (const el of this.#root._tracking) {
+          el.#sources |= this.#id
+        }
       }
-    }
     return this.#val as T
   }
 
   set val(val: T | null) {
-    if (this.#fn) return;
+    if (this.#fn || this.#isDisposed) return;
     if (this.equals(val, this.#val)) return;
-    for (const item of this.#root.computeds) {
+    for (const item of this.#root._computeds) {
       if ((item.#sources & this.#id) !== 0 && !item.#isDirty) {
         item.#isDirty = true;
         if (item.#isEffect) {
@@ -101,20 +106,26 @@ export class FlatSignal<T = unknown> {
     this.#val = val as T;
   }
 
-  #disconnect() {
-    const last = this.#root.computeds.length;
-    [this.#root.computeds[this.#id], this.#root.computeds[last]] = [this.#root.computeds[last], this.#root.computeds[this.#id]];
-    this.#root.computeds.pop();
+  #disconnectFromRoot() {
+    const last = this.#root._computeds.length;
+    if (last > 1)
+      [this.#root._computeds[this.#id], this.#root._computeds[last]] = [this.#root._computeds[last], this.#root._computeds[this.#id]];
+    this.#root._computeds.pop();
+    this.#id = -1;
   }
 
   dispose(removeFromRoot = true) {
-    this.onDispose?.();
+    if (this.#isDisposed) return;
     if (removeFromRoot && this.#fn) {
-      this.#disconnect();
+      this.#disconnectFromRoot();
     }
-    this.onDispose = null;
-    this.#fn = null;
-    this.val = null;
+    this._onDispose?.();
+    this._onDispose = null;
+    this.#isDisposed = true;
+  }
+
+  _getRoot() {
+    return this.#root
   }
 }
 
@@ -131,20 +142,35 @@ export function queueTick() {
 }
 
 export function dispose() {
-  ROOT?.dispose();
+  ROOT?._dispose();
 }
 
 export function onDispose(fn: () => void) {
-  const current = ROOT?.current;
-  if (current && !current.onDispose) {
-    current.onDispose = fn;
+  const current = ROOT?._current;
+  if (current) {
+    current._onDispose = fn;
   } else {
-    ROOT?.disposals.push(fn);
+    ROOT?._disposals.push(fn);
   }
 }
 
 export function autoTick(fn = queueTick) {
   SCHEDULER = fn;
+}
+
+export function withRoot<T>(root: Root, fn: () => T) {
+  const prev = root;
+  ROOT = root;
+  const x = fn();
+  ROOT = prev;
+  return x;
+}
+
+export function link<T>(outer: FlatSignal<T>) {
+  const inner = signal(outer.val)
+  const outerEffect = withRoot(outer._getRoot(), () => effect(() => inner.val = outer.val));
+  inner._onDispose = () => outerEffect.dispose()
+  return outerEffect;
 }
 
 export function signal<T = unknown>(val?: T | (() => T)) {

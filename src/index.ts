@@ -43,7 +43,7 @@ export class FlatSignal<T = unknown> {
   #root: Root = ROOT ?? new Root();
   #id: number;
   #sources: number = 0;
-  #val: T | undefined | null;
+  #val: T | undefined;
   #fn: (() => T) | null = null;
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
@@ -108,8 +108,10 @@ export class FlatSignal<T = unknown> {
 
   #disconnectFromRoot() {
     const last = this.#root._computeds.length;
-    if (last > 1)
+    if (last > 1) {
       [this.#root._computeds[this.#id], this.#root._computeds[last]] = [this.#root._computeds[last], this.#root._computeds[this.#id]];
+      this.#root._computeds[last].#id = this.#id;
+    }
     this.#root._computeds.pop();
     this.#id = -1;
   }
@@ -159,7 +161,7 @@ export function autoTick(fn = queueTick) {
 }
 
 export function withRoot<T>(root: Root, fn: () => T) {
-  const prev = root;
+  const prev = ROOT;
   ROOT = root;
   const x = fn();
   ROOT = prev;
@@ -167,10 +169,22 @@ export function withRoot<T>(root: Root, fn: () => T) {
 }
 
 export function link<T>(outer: FlatSignal<T>) {
-  const inner = signal(outer.val)
-  const outerEffect = withRoot(outer._getRoot(), () => effect(() => inner.val = outer.val));
-  inner._onDispose = () => outerEffect.dispose()
-  return outerEffect;
+  let updating = false;
+  const inner = signal(outer.val);
+  const outerEffect = withRoot(outer._getRoot(), () => effect(() => {
+    if (!updating) inner.val = outer.val
+    return outer.val;
+  }));
+  inner._onDispose = outerEffect.dispose
+  return {
+    get val() {
+      return inner.val;
+    },
+    set val(v) {
+      updating = true
+      outer.val = v;
+    }
+  };
 }
 
 export function signal<T = unknown>(val?: T | (() => T)) {

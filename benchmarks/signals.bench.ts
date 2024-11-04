@@ -89,3 +89,42 @@ describe("deep propagation", () => {
   }
   runAll(op);
 });
+
+describe("dynamic dependencies", () => {
+  function op(api: FrameworkBenchmarkApi) {
+    return api.root(() => {
+      const s1 = api.signal(true);
+      const s2 = api.signal("a");
+      const s3 = api.signal("b");
+      const s4 = api.computed(() => s1.get() ? s2.get() : s3.get());
+      let i = 0;
+      return () => {
+        api.runSync(() => {
+          s1.set(i++ % 2 === 0);
+          s4.get();
+        })
+      }
+    });
+  }
+  runAll(op);
+});
+
+
+describe("simple effects", () => {
+  function op(api: FrameworkBenchmarkApi) {
+    return api.root(() => {
+      const s1 = api.signal(1);
+      const s2 = api.signal(1);
+      const s3 = api.computed(() => s1.get() + s2.get());
+      api.effect(() => { s1.get() });
+      api.effect(() => { s2.get() });
+      api.effect(() => { s3.get() });
+      return () => {
+        api.runSync(() => {
+          s1.set(s1.get() + 1);
+        });
+      }
+    });
+  }
+  runAll(op);
+});

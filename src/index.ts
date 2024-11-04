@@ -12,7 +12,7 @@ export interface Reader<T> {
   readonly val: T
 };
 
-class Root {
+export class Root {
   _computeds: Array<FlatSignal> = [];
   _disposals: Array<() => void> = [];
   _children: Array<Root> = [];
@@ -58,7 +58,7 @@ export class FlatSignal<T = unknown> {
   #isDirty = true;
   #isEffect: boolean = false;
   #isDisposed: boolean = false;
-  _onDispose: (() => void) | null = null;
+  _onDispose: (() => void) | undefined;
   equals = (a: unknown, b: unknown) => a === b;
 
   constructor(val?: T | (() => T), effect?: boolean) {
@@ -146,11 +146,11 @@ export function dispose() {
   ROOT?._dispose();
 }
 
-export function onDispose(fn: () => void) {
+export function onDispose(fn?: (() => void)) {
   const current = ROOT?._current;
   if (current) {
     current._onDispose = fn;
-  } else {
+  } else if (fn) {
     ROOT?._disposals.push(fn);
   }
 }

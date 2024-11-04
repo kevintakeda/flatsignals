@@ -247,7 +247,7 @@ it("should only subscribe to signals listened to", () => {
 
     spyB.mockClear();
     spyC.mockClear();
-    unsub.val = ""; // unsubscribe
+    unsub();
 
     a.val = "aa";
 

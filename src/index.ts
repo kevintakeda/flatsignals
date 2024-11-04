@@ -18,7 +18,7 @@ class Root {
     if (this._disposing) return;
     this._disposing = true;
     for (const el of this._disposals) el();
-    for (const el of this._computeds) el.dispose(false);
+    for (const el of this._computeds) el._dispose();
     for (const el of this._children) el._dispose();
     this._children = [];
     this._computeds = [];
@@ -40,7 +40,7 @@ export function root<T>(fn: (dispose: () => void) => T) {
 }
 
 export class FlatSignal<T = unknown> {
-  #root: Root = ROOT ?? new Root();
+  #root: Root;
   #id: number;
   #sources: number = 0;
   #val: T | undefined;
@@ -53,6 +53,8 @@ export class FlatSignal<T = unknown> {
   equals = (a: unknown, b: unknown) => a === b;
 
   constructor(val?: T | (() => T), effect?: boolean) {
+    if (!ROOT) ROOT = new Root()
+    this.#root = ROOT;
     if (typeof val === "function") {
       this.#fn = val as () => T;
       this.#id = this.#root._computeds.push(this) - 1;
@@ -106,23 +108,9 @@ export class FlatSignal<T = unknown> {
     this.#val = val as T;
   }
 
-  #disconnectFromRoot() {
-    const last = this.#root._computeds.length;
-    if (last > 1) {
-      [this.#root._computeds[this.#id], this.#root._computeds[last]] = [this.#root._computeds[last], this.#root._computeds[this.#id]];
-      this.#root._computeds[last].#id = this.#id;
-    }
-    this.#root._computeds.pop();
-    this.#id = -1;
-  }
-
-  dispose(removeFromRoot = true) {
+  _dispose() {
     if (this.#isDisposed) return;
-    if (removeFromRoot && this.#fn) {
-      this.#disconnectFromRoot();
-    }
     this._onDispose?.();
-    this._onDispose = null;
     this.#isDisposed = true;
   }
 
@@ -175,7 +163,7 @@ export function link<T>(outer: FlatSignal<T>) {
     if (!updating) inner.val = outer.val
     return outer.val;
   }));
-  inner._onDispose = outerEffect.dispose
+  inner._onDispose = outerEffect.bind(outerEffect);
   return {
     get val() {
       return inner.val;
@@ -192,5 +180,6 @@ export function signal<T = unknown>(val?: T | (() => T)) {
 }
 
 export function effect<T = unknown>(fn: (() => T)) {
-  return new FlatSignal(fn, true)
+  const sig = new FlatSignal(fn, true)
+  return sig._dispose.bind(sig)
 }

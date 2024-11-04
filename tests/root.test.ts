@@ -26,7 +26,6 @@ test("should not throw if dispose called during active disposal process", () => 
 test("should dispose of inner computations", () => {
   let $x: FlatSignal<number>;
   let $y: FlatSignal<number>;
-  let $z: FlatSignal<number>;
 
   const _memo = vi.fn(() => $x.val + 10);
   const _effect = vi.fn(() => $x.val + 10);
@@ -34,7 +33,7 @@ test("should dispose of inner computations", () => {
   root(dispose => {
     $x = signal(10);
     $y = signal(_memo);
-    $z = effect(_effect);
+    effect(_effect);
     $y.val;
     dispose();
   });

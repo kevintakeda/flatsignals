@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { root, signal, tick } from "../src/index.js";
+import { computed, root, signal, tick } from "../src/index.js";
 
 test("is cached", () => {
   root(() => {
@@ -80,8 +80,8 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
 test("diamond graph runs once", () => {
   root(() => {
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => a.val);
+    const b = computed(() => a.val);
+    const c = computed(() => a.val);
 
     const spy = vi.fn(() => b.val + c.val);
     const d = signal(spy);
@@ -100,11 +100,11 @@ test("repeating computeds runs once", () => {
   root(() => {
     const a = signal(1);
     const spyB = vi.fn(() => a.val + a.val);
-    const b = signal(spyB);
+    const b = computed(spyB);
     const spyC = vi.fn(() => a.val + b.val + a.val + b.val);
-    const c = signal(spyC);
+    const c = computed(spyC);
     const spyD = vi.fn(() => a.val + b.val + c.val + a.val + b.val + c.val);
-    const d = signal(spyD);
+    const d = computed(spyD);
     expect(d.val).toBe(18);
     expect(spyB).toHaveBeenCalledTimes(1);
     expect(spyC).toHaveBeenCalledTimes(1);
@@ -129,12 +129,12 @@ test("repeating computeds runs once", () => {
 test("branching (updates and runs once)", () => {
   root(() => {
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => a.val);
+    const b = computed(() => a.val);
+    const c = computed(() => a.val);
     const dSpy = vi.fn(() => b.val + c.val);
-    const d = signal(dSpy);
-    const e = signal(() => d.val);
-    const f = signal(() => e.val);
+    const d = computed(dSpy);
+    const e = computed(() => d.val);
+    const f = computed(() => e.val);
 
     expect(e.val).toBe("aa");
     expect(f.val).toBe("aa");
@@ -158,13 +158,13 @@ test("track dependencies optimally", () => {
     //   X
     const a1 = signal("a");
     const a2Spy = vi.fn(() => a1.val);
-    const a2 = signal(a2Spy);
+    const a2 = computed(a2Spy);
 
     const b1 = signal("b");
     const b2Spy = vi.fn(() => b1.val);
-    const b2 = signal(b2Spy);
+    const b2 = computed(b2Spy);
 
-    const x = signal(() => a2.val + b2.val)
+    const x = computed(() => a2.val + b2.val)
 
     x.val; // trick the graph (to catch more dependencies than needed)
     expect(a2Spy).toBeCalledTimes(1);

@@ -1,7 +1,16 @@
 let ROOT: Root | null = null,
   EFFECT_QUEUE: Array<FlatSignal> = [],
   QUEUED = false,
-  SCHEDULER: (() => void) | undefined;
+  SCHEDULER: (() => void) | undefined,
+  TRACKING = true;
+
+export interface Accessor<T> {
+  val: T
+};
+
+export interface Reader<T> {
+  readonly val: T
+};
 
 class Root {
   _computeds: Array<FlatSignal> = [];
@@ -73,19 +82,21 @@ export class FlatSignal<T = unknown> {
       if (this.#fn) {
         const prevCurrent = this.#root._current;
         if (this.#isDirty) {
-          this.#root._current = this;
-          this.#root._tracking.push(this);
-
-          this.#sources = 0;
+          if (TRACKING) {
+            this.#root._current = this;
+            this.#root._tracking.push(this);
+            this.#sources = 0;
+          }
           this.#val = this.#fn();
           this.#isDirty = false;
-
-          this.#root._current = prevCurrent;
-          this.#root._tracking.pop();
-        } else if (prevCurrent) {
+          if (TRACKING) {
+            this.#root._current = prevCurrent;
+            this.#root._tracking.pop();
+          }
+        } else if (prevCurrent && TRACKING) {
           prevCurrent.#sources |= this.#sources;
         }
-      } else {
+      } else if (TRACKING) {
         for (const el of this.#root._tracking) {
           el.#sources |= this.#id
         }
@@ -158,7 +169,7 @@ export function withRoot<T>(root: Root, fn: () => T) {
 
 export function link<T>(outer: FlatSignal<T>) {
   let updating = false;
-  const inner = signal(outer.val);
+  const inner = new FlatSignal(outer.val);
   const outerEffect = withRoot(outer._getRoot(), () => effect(() => {
     if (!updating) inner.val = outer.val
     return outer.val;
@@ -175,11 +186,23 @@ export function link<T>(outer: FlatSignal<T>) {
   };
 }
 
-export function signal<T = unknown>(val?: T | (() => T)) {
-  return new FlatSignal(val)
+export function signal<T = unknown>(val?: T): Accessor<T> {
+  return new FlatSignal(val);
+}
+
+export function computed<T = unknown>(val: (() => T)): Reader<T> {
+  return new FlatSignal(val);
 }
 
 export function effect<T = unknown>(fn: (() => T)) {
-  const sig = new FlatSignal(fn, true)
-  return sig._dispose.bind(sig)
+  const sig = new FlatSignal(fn, true);
+  return sig._dispose.bind(sig);
+}
+
+export function untrack<T = unknown>(fn: (() => T)) {
+  const prev = TRACKING;
+  TRACKING = false;
+  const x = fn();
+  TRACKING = prev;
+  return x;
 }

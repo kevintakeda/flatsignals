@@ -1,7 +1,7 @@
 // adapted from https://github.com/preactjs/signals/blob/main/packages/core/test/signal.test.tsx
 
 import { vi, it, expect } from "vitest";
-import { root, tick, signal, effect } from "../src/index.js";
+import { root, tick, signal, effect, computed } from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
   root(() => {
@@ -36,11 +36,11 @@ it("should drop A->B->A updates", async () => {
     //     D
     const a = signal(2);
 
-    const b = signal(() => a.val - 1);
-    const c = signal(() => a.val + b.val);
+    const b = computed(() => a.val - 1);
+    const c = computed(() => a.val + b.val);
 
     const compute = vi.fn(() => "d: " + c.val);
-    const d = signal(compute);
+    const d = computed(compute);
 
     // Trigger read
     expect(d.val).to.equal("d: 3");
@@ -63,11 +63,11 @@ it("should only update every signal once (diamond graph)", () => {
     //   \   /
     //     D
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => a.val);
+    const b = computed(() => a.val);
+    const c = computed(() => a.val);
 
     const spy = vi.fn(() => b.val + " " + c.val);
-    const d = signal(spy);
+    const d = computed(spy);
 
     expect(d.val).to.equal("a a");
     expect(spy).toHaveBeenCalledOnce();
@@ -89,13 +89,13 @@ it("should only update every signal once (diamond graph + tail)", () => {
     //     |
     //     E
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => a.val);
+    const b = computed(() => a.val);
+    const c = computed(() => a.val);
 
-    const d = signal(() => b.val + " " + c.val);
+    const d = computed(() => b.val + " " + c.val);
 
     const spy = vi.fn(() => d.val);
-    const e = signal(spy);
+    const e = computed(spy);
 
     expect(e.val).to.equal("a a");
     expect(spy).toHaveBeenCalledOnce();
@@ -112,13 +112,13 @@ it("should only update every signal once (diamond graph + tail)", () => {
 //     // Bail out if value of "B" never changes
 //     // A->B->C
 //     const a = signal("a");
-//     const b = signal(() => {
+//     const b = computed(() => {
 //       a.val;
 //       return "foo";
 //     });
 
 //     const spy = vi.fn(() => b.val);
-//     const c = signal(spy);
+//     const c = computed(spy);
 
 //     expect(c.val).to.equal("foo");
 //     expect(spy).toHaveBeenCalledOnce();
@@ -143,10 +143,10 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
     //  F     G
     const a = signal("a");
 
-    const b = signal(() => a.val);
-    const c = signal(() => a.val);
+    const b = computed(() => a.val);
+    const c = computed(() => a.val);
 
-    const d = signal(() => c.val);
+    const d = computed(() => c.val);
 
     const eSpy = vi.fn(() => b.val + " " + d.val);
     const e = signal(eSpy);
@@ -206,9 +206,9 @@ it("should only subscribe to signals listened to", () => {
     // *B     C <- we don't listen to C
     const a = signal("a");
 
-    const b = signal(() => a.val);
+    const b = computed(() => a.val);
     const spy = vi.fn(() => a.val);
-    signal(spy);
+    computed(spy);
 
     expect(b.val).to.equal("a");
     expect(spy).not.toHaveBeenCalled();
@@ -231,12 +231,12 @@ it("should only subscribe to signals listened to", () => {
     // *C
     const a = signal("a");
     const spyB = vi.fn(() => a.val);
-    const b = signal(spyB);
+    const b = computed(spyB);
 
     const spyC = vi.fn(() => b.val);
-    const c = signal(spyC);
+    const c = computed(spyC);
 
-    const d = signal(() => a.val);
+    const d = computed(() => a.val);
 
     let result = "";
     const unsub = effect(() => (result = c.val));
@@ -269,13 +269,13 @@ it("should ensure subs update even if one dep unmarks it", () => {
     //   \   /
     //     D
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => {
+    const b = computed(() => a.val);
+    const c = computed(() => {
       a.val;
       return "c";
     });
     const spy = vi.fn(() => b.val + " " + c.val);
-    const d = signal(spy);
+    const d = computed(spy);
     expect(d.val).to.equal("a c");
     spy.mockClear();
 
@@ -296,17 +296,17 @@ it("should ensure subs update even if two deps unmark it", () => {
     //   \ | /
     //     E
     const a = signal("a");
-    const b = signal(() => a.val);
-    const c = signal(() => {
+    const b = computed(() => a.val);
+    const c = computed(() => {
       a.val;
       return "c";
     });
-    const d = signal(() => {
+    const d = computed(() => {
       a.val;
       return "d";
     });
     const spy = vi.fn(() => b.val + " " + c.val + " " + d.val);
-    const e = signal(spy);
+    const e = computed(spy);
     expect(e.val).to.equal("a c d");
     spy.mockClear();
 

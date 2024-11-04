@@ -1,5 +1,5 @@
 import { Reactive, stabilize } from "@reactively/core";
-import { signal, effect, root, tick } from "../src/index.js"
+import { signal, effect, root, tick, computed } from "../src/index.js"
 import {
   signal as psignal,
   effect as peffect,
@@ -38,7 +38,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
     };
   },
   computed: (fn) => {
-    const S = signal(fn);
+    const S = computed(fn);
     return {
       get: () => S.val,
     };

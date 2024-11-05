@@ -197,7 +197,7 @@ export function signal<T = unknown>(val?: T): DataSignal<T> {
 }
 
 export function computed<T = unknown>(val: (() => T)): Computed<T> {
-  return new Computation(val, undefined, true);
+  return new Computation(val, undefined, false);
 }
 
 export function effect<T = unknown>(fn: (() => T)) {

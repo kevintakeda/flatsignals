@@ -22,6 +22,7 @@ export interface FrameworkComputed<T = unknown> {
   get(): T;
 }
 export interface FrameworkBenchmarkApi {
+  name: string;
   signal<T>(val: T): FrameworkSignal<T>;
   computed<T>(fn: () => T): FrameworkComputed<T>;
   effect(fn: () => void): void;
@@ -30,6 +31,7 @@ export interface FrameworkBenchmarkApi {
 }
 
 export const FlatSignalsFramework: FrameworkBenchmarkApi = {
+  name: "flatsignals",
   signal: (val) => {
     const S = signal(val);
     return {
@@ -52,6 +54,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
 };
 
 export const ReactivelyFramework: FrameworkBenchmarkApi = {
+  name: "@reactively/core",
   signal: (val) => {
     const S = new Reactive(val);
     return {
@@ -74,6 +77,7 @@ export const ReactivelyFramework: FrameworkBenchmarkApi = {
 };
 
 export const PreactSignalsFramework: FrameworkBenchmarkApi = {
+  name: "@preact/signals",
   signal: (val) => {
     const S = psignal(val);
     return {
@@ -93,6 +97,7 @@ export const PreactSignalsFramework: FrameworkBenchmarkApi = {
 };
 
 export const MaverickSignalsFramework: FrameworkBenchmarkApi = {
+  name: "@maverick-js/signals",
   signal: (val) => {
     const S = msignal(val);
     return {

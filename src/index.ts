@@ -1,25 +1,29 @@
 let ROOT: Root | null = null,
-  EFFECT_QUEUE: Array<FlatSignal> = [],
+  EFFECT_QUEUE: Array<Computation> = [],
   QUEUED = false,
   SCHEDULER: (() => void) | undefined,
   TRACKING = true;
 
-export interface Accessor<T> {
+export interface DataSignal<T = unknown> {
   val: T
 };
 
-export interface Reader<T> {
+export interface LinkSignal<T = unknown> {
+  val: T
+};
+
+export interface Computed<T = unknown> {
   readonly val: T
 };
 
 export class Root {
-  _computeds: Array<FlatSignal> = [];
+  _computeds: Array<Computation> = [];
   _disposals: Array<() => void> = [];
   _children: Array<Root> = [];
   _i = 0;
 
-  _tracking: Array<FlatSignal> = [];
-  _current: FlatSignal | null = null;
+  _tracking: Array<Computation> = [];
+  _current: Computation | null = null;
 
   _disposing: boolean = false;
 
@@ -35,6 +39,7 @@ export class Root {
     this._i = 0;
   }
   _id() {
+    if (this._i > 31) throw new Error()
     return 1 << this._i++
   }
 }
@@ -48,12 +53,12 @@ export function root<T>(fn: (dispose: () => void) => T) {
   return result
 }
 
-export class FlatSignal<T = unknown> {
+export class Computation<T = unknown> {
   #root: Root;
   #id: number;
   #sources: number = 0;
   #val: T | undefined;
-  #fn: (() => T) | null = null;
+  #fn: (() => T) | undefined;
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
   #isEffect: boolean = false;
@@ -61,18 +66,18 @@ export class FlatSignal<T = unknown> {
   _onDispose: (() => void) | undefined;
   equals = (a: unknown, b: unknown) => a === b;
 
-  constructor(val?: T | (() => T), effect?: boolean) {
+  constructor(compute?: () => T, val?: T, effect?: boolean) {
     if (!ROOT) ROOT = new Root()
     this.#root = ROOT;
-    if (typeof val === "function") {
-      this.#fn = val as () => T;
+    if (compute !== undefined) {
+      this.#fn = compute;
       this.#id = this.#root._computeds.push(this) - 1;
       if (effect) {
         this.#isEffect = effect;
         EFFECT_QUEUE.push(this)
       }
     } else {
-      this.#val = val;
+      this.#val = val as T;
       this.#id = this.#root._id();
     }
   }
@@ -167,9 +172,10 @@ export function withRoot<T>(root: Root, fn: () => T) {
   return x;
 }
 
-export function link<T>(outer: FlatSignal<T>) {
+export function link<T>(outer: DataSignal<T> | Computed<T> | Computed): LinkSignal {
+  if (!(outer instanceof Computation)) throw new Error();
   let updating = false;
-  const inner = new FlatSignal(outer.val);
+  const inner = new Computation(undefined, outer.val);
   const outerEffect = withRoot(outer._getRoot(), () => effect(() => {
     if (!updating) inner.val = outer.val
     return outer.val;
@@ -186,16 +192,16 @@ export function link<T>(outer: FlatSignal<T>) {
   };
 }
 
-export function signal<T = unknown>(val?: T): Accessor<T> {
-  return new FlatSignal(val);
+export function signal<T = unknown>(val?: T): DataSignal<T> {
+  return new Computation(undefined, val);
 }
 
-export function computed<T = unknown>(val: (() => T)): Reader<T> {
-  return new FlatSignal(val);
+export function computed<T = unknown>(val: (() => T)): Computed<T> {
+  return new Computation(val, undefined, true);
 }
 
 export function effect<T = unknown>(fn: (() => T)) {
-  const sig = new FlatSignal(fn, true);
+  const sig = new Computation(fn, undefined, true);
   return sig._dispose.bind(sig);
 }
 

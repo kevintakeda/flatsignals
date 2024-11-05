@@ -1,6 +1,6 @@
 
 import { vi, expect, test } from "vitest";
-import { effect, root, signal, tick } from "../src/index.js";
+import { computed, effect, root, signal, tick } from "../src/index.js";
 
 test("effects", () => {
   root(() => {
@@ -130,8 +130,8 @@ test("effect with conditional dependencies", () => {
     const s1 = signal(true);
     const s2 = signal("a");
     const s3 = signal("b");
-    const s4 = signal(() => s2.val);
-    const s5 = signal(() => s3.val);
+    const s4 = computed(() => s2.val);
+    const s5 = computed(() => s3.val);
     let result = { val: 0 };
     effect(
       () => {
@@ -157,11 +157,11 @@ test("effect with deep dependencies", () => {
   root(() => {
     const a = signal(2);
     const spyB = vi.fn(() => a.val + 1);
-    const b = signal(spyB);
+    const b = computed(spyB);
     const spyC = vi.fn(() => b.val);
-    const c = signal(spyC);
+    const c = computed(spyC);
     const spyD = vi.fn(() => c.val);
-    const d = signal(spyD);
+    const d = computed(spyD);
     const spyE = vi.fn(() => d.val);
     effect(spyE);
     tick();

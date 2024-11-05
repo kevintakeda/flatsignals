@@ -1,9 +1,9 @@
 import { vi, expect, test } from "vitest";
-import { FlatSignal, root, signal, tick, onDispose, effect, dispose, link } from "../src/index.js";
+import { root, signal, tick, onDispose, effect, dispose, link, computed, Computed, DataSignal } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
-  let S: FlatSignal;
+  let S!: DataSignal;
   root(() => {
     S = signal(0);
     S.val;
@@ -11,7 +11,6 @@ test("untracked", () => {
   });
 
   expect(spy).toBeCalledTimes(1);
-  // @ts-ignore
   S.val = true;
   expect(spy).toBeCalledTimes(1);
 });
@@ -24,15 +23,15 @@ test("should not throw if dispose called during active disposal process", () => 
 });
 
 test("should dispose of inner computations", () => {
-  let $x: FlatSignal<number>;
-  let $y: FlatSignal<number>;
+  let $x!: DataSignal<number>;
+  let $y!: Computed<number>;
 
   const _memo = vi.fn(() => $x.val + 10);
   const _effect = vi.fn(() => $x.val + 10);
 
   root(dispose => {
     $x = signal(10);
-    $y = signal(_memo);
+    $y = computed(_memo);
     effect(_effect);
     $y.val;
     dispose();

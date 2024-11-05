@@ -6,7 +6,7 @@ test("is cached", () => {
     const a = signal(1);
     const b = signal(2);
     const cSpy = vi.fn(() => a.val + b.val);
-    const c = signal(cSpy);
+    const c = computed(cSpy);
     expect(c.val).toBe(3);
     expect(c.val).toBe(3);
     expect(cSpy).toHaveBeenCalledTimes(1);
@@ -18,7 +18,7 @@ test("is lazy", () => {
     const a = signal("a");
     const b = signal("b");
     const cSpy = vi.fn(() => a.val + b.val);
-    const c = signal(cSpy);
+    const c = computed(cSpy);
     a.val = "a!";
     b.val = "b!";
     expect(cSpy).toHaveBeenCalledTimes(0);
@@ -31,7 +31,7 @@ test("is updated", () => {
   root(() => {
     const a = signal(false);
     const bSpy = vi.fn(() => a.val ? "1" : "2");
-    const b = signal(bSpy);
+    const b = computed(bSpy);
     expect(b.val).toBe("2");
     a.val = true;
     expect(b.val).toBe("1");
@@ -50,7 +50,7 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
     const c = signal("c");
 
     const dSpy = vi.fn(() => a.val ? b.val : c.val);
-    const d = signal(dSpy);
+    const d = computed(dSpy);
     expect(d.val).toBe("c");
 
     a.val = true;
@@ -84,7 +84,7 @@ test("diamond graph runs once", () => {
     const c = computed(() => a.val);
 
     const spy = vi.fn(() => b.val + c.val);
-    const d = signal(spy);
+    const d = computed(spy);
 
     expect(d.val).toBe("aa");
     expect(spy).toHaveBeenCalledTimes(1);

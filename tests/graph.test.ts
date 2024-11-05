@@ -12,7 +12,7 @@ it("should run computeds once for multiple dep changes", () => {
       // debugger;
       return a.val + b.val;
     });
-    const c = signal(compute);
+    const c = computed(compute);
 
     expect(c.val).toBe("ab");
     expect(compute).toHaveBeenCalledOnce();
@@ -149,12 +149,12 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
     const d = computed(() => c.val);
 
     const eSpy = vi.fn(() => b.val + " " + d.val);
-    const e = signal(eSpy);
+    const e = computed(eSpy);
 
     const fSpy = vi.fn(() => e.val);
-    const f = signal(fSpy);
+    const f = computed(fSpy);
     const gSpy = vi.fn(() => e.val);
-    const g = signal(gSpy);
+    const g = computed(gSpy);
 
     expect(f.val).to.equal("a a");
     expect(fSpy).toHaveBeenCalledOnce();

@@ -108,37 +108,29 @@ describe("dynamic dependencies", () => {
   runAll(op);
 });
 
-describe("simple effects", () => {
+describe("divergent effects", () => {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
-      const s1 = api.signal(1);
-      const s2 = api.signal(1);
-      const s3 = api.signal(1);
-      const s4 = api.signal(1);
+      const x = api.signal(1);
+      let count = 0;
+      for (let index = 0; index < 10; index++) {
+        const a = api.computed(() => x.get());
+        const b = api.computed(() => a.get());
+        const c = api.computed(() => b.get());
+        const d = api.computed(() => c.get());
 
-      for (let i = 0; i < 20; i++) {
-        const c1 = api.computed(() => s1.get());
-        const c2 = api.computed(() => c1.get());
-        const c3 = api.computed(() => c2.get());
-        const c4 = api.computed(() => c3.get());
-
-        api.effect(() => { s1.get() });
-        api.effect(() => { s2.get() });
-        api.effect(() => { s3.get() });
-        api.effect(() => { s4.get() });
-
-        api.effect(() => { c1.get() });
-        api.effect(() => { c2.get() });
-        api.effect(() => { c3.get() });
-        api.effect(() => { c4.get() });
+        api.effect(() => { x.get(); count++; });
+        api.effect(() => { a.get(); count++; });
+        api.effect(() => { b.get(); count++; });
+        api.effect(() => { c.get(); count++; });
+        api.effect(() => { d.get(); count++; });
       }
       return () => {
+        count = 0;
         api.runSync(() => {
-          s4.set(s4.get() + 1);
-          s3.set(s3.get() + 1);
-          s2.set(s2.get() + 1);
-          s1.set(s1.get() + 1);
+          x.set(x.get() + 1);
         });
+        console.assert(count === 10 * 5, count);
       }
     });
   }

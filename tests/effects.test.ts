@@ -171,3 +171,28 @@ test("effect with deep dependencies", () => {
     expect(spyE).toHaveBeenCalledTimes(2);
   })
 });
+
+test("top to bottom calls", () => {
+  let count = vi.fn();
+  return root(() => {
+    const x = signal("x");
+    const a = computed(() => x.val);
+    const b = computed(() => a.val);
+    effect(() => { x.val; count(); });
+    effect(() => { a.val; count(); });
+    effect(() => { b.val; count(); });
+
+    tick();
+    expect(count).toBeCalledTimes(3)
+
+    count.mockClear();
+    x.val = "x!";
+    tick();
+    expect(count).toBeCalledTimes(3)
+
+    count.mockClear();
+    x.val = "x!!";
+    tick();
+    expect(count).toBeCalledTimes(3)
+  });
+});

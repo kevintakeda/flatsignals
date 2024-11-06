@@ -8,7 +8,7 @@ export interface DataSignal<T = unknown> {
   val: T
 };
 
-export interface LinkSignal<T = unknown> {
+export interface Channel<T = unknown> {
   val: T
 };
 
@@ -74,7 +74,7 @@ export class Computation<T = unknown> {
       this.#id = this.#root._computeds.push(this) - 1;
       if (effect) {
         this.#isEffect = effect;
-        EFFECT_QUEUE.push(this)
+        EFFECT_QUEUE.push(this);
       }
     } else {
       this.#val = val as T;
@@ -86,7 +86,7 @@ export class Computation<T = unknown> {
     if (!this.#isDisposed)
       if (this.#fn) {
         const prevCurrent = this.#root._current;
-        if (this.#isDirty) {
+        if (this.#isDirty || this.#isEffect) {
           if (TRACKING) {
             this.#root._current = this;
             this.#root._tracking.push(this);
@@ -98,7 +98,8 @@ export class Computation<T = unknown> {
             this.#root._current = prevCurrent;
             this.#root._tracking.pop();
           }
-        } else if (prevCurrent && TRACKING) {
+        }
+        if (prevCurrent && TRACKING) {
           prevCurrent.#sources |= this.#sources;
         }
       } else if (TRACKING) {
@@ -172,7 +173,7 @@ export function withRoot<T>(root: Root, fn: () => T) {
   return x;
 }
 
-export function link<T>(outer: DataSignal<T> | Computed<T> | Computed): LinkSignal {
+export function channel<T>(outer: DataSignal<T> | Computed<T> | Computed): Channel {
   if (!(outer instanceof Computation)) throw new Error();
   let updating = false;
   const inner = new Computation(undefined, outer.val);

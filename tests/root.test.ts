@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { root, signal, tick, onDispose, effect, dispose, link, computed, Computed, DataSignal } from "../src/index.js";
+import { root, signal, tick, onDispose, effect, dispose, channel, computed, Computed, DataSignal } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -51,7 +51,7 @@ test("should dispose of inner computations", () => {
 });
 
 
-test("link", () => {
+test("channel", () => {
   const spyInner = vi.fn();
   const spyOuter = vi.fn();
 
@@ -62,7 +62,7 @@ test("link", () => {
     })
 
     root(() => {
-      const inner = link(global)
+      const inner = channel(global)
       effect(() => {
         spyInner(inner.val);
       });

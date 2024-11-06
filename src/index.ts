@@ -17,16 +17,23 @@ export interface Computed<T = unknown> {
 };
 
 export class Root {
+  /* @internal */
   _computeds: Array<Computation> = [];
-  _disposals: Array<() => void> = [];
+  /* @internal */
+  _disposals: Array<((...a: any[]) => void)> = [];
+  /* @internal */
   _children: Array<Root> = [];
+  /* @internal */
   _i = 0;
 
+  /* @internal */
   _tracking: Array<Computation> = [];
+  /* @internal */
   _current: Computation | null = null;
-
+  /* @internal */
   _disposing: boolean = false;
 
+  /* @internal */
   _dispose() {
     if (this._disposing) return;
     this._disposing = true;
@@ -38,6 +45,7 @@ export class Root {
     this._disposals = [];
     this._i = 0;
   }
+  /* @internal */
   _id() {
     if (this._i > 31) throw new Error()
     return 1 << this._i++
@@ -57,13 +65,12 @@ export class Computation<T = unknown> {
   #root: Root;
   #id: number;
   #sources: number = 0;
-  #val: T | undefined;
+  #val: T;
   #fn: (() => T) | undefined;
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
   #isEffect: boolean = false;
-  #isDisposed: boolean = false;
-  _onDispose: (() => void) | undefined;
+  #disposals: ((prevValue: T) => void)[] = [];
   equals = (a: unknown, b: unknown) => a === b;
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
@@ -71,50 +78,57 @@ export class Computation<T = unknown> {
     this.#root = ROOT;
     if (compute !== undefined) {
       this.#fn = compute;
-      this.#id = this.#root._computeds.push(this) - 1;
+      this.#id = this.#root._computeds.push(this as Computation<unknown>) - 1;
       if (effect) {
         this.#isEffect = effect;
-        EFFECT_QUEUE.push(this);
+        EFFECT_QUEUE.push(this as Computation<unknown>);
       }
+      this.#val = undefined as any;
     } else {
       this.#val = val as T;
       this.#id = this.#root._id();
     }
   }
 
-  get val(): T {
-    if (!this.#isDisposed)
-      if (this.#fn) {
-        const prevCurrent = this.#root._current;
-        if (this.#isDirty || this.#isEffect) {
-          if (TRACKING) {
-            this.#root._current = this;
-            this.#root._tracking.push(this);
-            this.#sources = 0;
-          }
-          this.#val = this.#fn();
-          this.#isDirty = false;
-          if (TRACKING) {
-            this.#root._current = prevCurrent;
-            this.#root._tracking.pop();
-          }
-        }
-        if (prevCurrent && TRACKING) {
-          prevCurrent.#sources |= this.#sources;
-        }
-      } else if (TRACKING) {
-        for (const el of this.#root._tracking) {
-          el.#sources |= this.#id
-        }
+  #cleanup() {
+    for (const fn of this.#disposals) fn(this.#val);
+    this.#disposals = [];
+  }
+
+  #update() {
+    const root = this.#root, prevCurrent = root._current;
+    if (this.#isDirty) {
+      if (this.#disposals.length) this.#cleanup();
+      if (TRACKING) {
+        root._current = this as Computation<unknown>;
+        root._tracking.push(this as Computation<unknown>);
+        this.#sources = 0;
       }
+      this.#val = this.#fn!();
+      this.#isDirty = false;
+      if (TRACKING) {
+        root._current = prevCurrent;
+        root._tracking.pop();
+      }
+    }
+    if (prevCurrent && TRACKING) {
+      prevCurrent.#sources |= this.#sources;
+    }
+  }
+
+  get val(): T {
+    if (this.#fn) {
+      this.#update();
+    } else if (TRACKING) for (const el of this.#root._tracking) {
+      el.#sources |= this.#id
+    }
     return this.#val as T
   }
 
-  set val(val: T | null) {
-    if (this.#fn || this.#isDisposed) return;
+  set val(val: T) {
     if (this.equals(val, this.#val)) return;
     for (const item of this.#root._computeds) {
-      if ((item.#sources & this.#id) !== 0 && !item.#isDirty) {
+      if (!item.#isDirty && (item.#sources & this.#id) !== 0) {
         item.#isDirty = true;
         if (item.#isEffect) {
           EFFECT_QUEUE.push(item);
@@ -125,12 +139,20 @@ export class Computation<T = unknown> {
     this.#val = val as T;
   }
 
-  _dispose() {
-    if (this.#isDisposed) return;
-    this._onDispose?.();
-    this.#isDisposed = true;
+  /* @internal */
+  _addDisposal(fn: (prevValue: T) => void) {
+    this.#disposals.push(fn);
   }
 
+  /* @internal */
+  _dispose() {
+    this.#cleanup();
+    this.#fn = undefined;
+    this.#sources = 0;
+    this.#isDirty = true;
+  }
+
+  /* @internal */
   _getRoot() {
     return this.#root
   }
@@ -149,13 +171,13 @@ export function queueTick() {
 }
 
 export function dispose() {
-  ROOT?._dispose();
+  (ROOT?._current ?? ROOT)?._dispose();
 }
 
-export function onDispose(fn?: (() => void)) {
+export function onDispose<T = unknown>(fn: ((prevValue: T) => void)) {
   const current = ROOT?._current;
   if (current) {
-    current._onDispose = fn;
+    current._addDisposal(fn as ((prevValue: unknown) => void));
   } else if (fn) {
     ROOT?._disposals.push(fn);
   }
@@ -176,12 +198,12 @@ export function withRoot<T>(root: Root, fn: () => T) {
 export function channel<T>(outer: DataSignal<T> | Computed<T> | Computed): Channel {
   if (!(outer instanceof Computation)) throw new Error();
   let updating = false;
-  const inner = new Computation(undefined, outer.val);
+  const inner = new Computation<T>(undefined, outer.val);
   const outerEffect = withRoot(outer._getRoot(), () => effect(() => {
     if (!updating) inner.val = outer.val
     return outer.val;
   }));
-  inner._onDispose = outerEffect.bind(outerEffect);
+  inner._addDisposal(outerEffect.bind(outerEffect));
   return {
     get val() {
       return inner.val;

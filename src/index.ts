@@ -1,4 +1,5 @@
 let ROOT: Root | null = null,
+  COMPUTED: Computation | null = null,
   EFFECT_QUEUE: Array<Computation> = [],
   QUEUED = false,
   SCHEDULER: (() => void) | undefined;
@@ -55,8 +56,6 @@ export class Root extends Scope {
   /* @internal */
   _tracking: Array<Computation> = [];
   /* @internal */
-  _current: Computation | null = null;
-  /* @internal */
   _i = 0;
 
   /* @internal */
@@ -71,21 +70,6 @@ export class Root extends Scope {
     if (this._i > 31) throw new Error()
     return 1 << this._i++
   }
-}
-
-export function root<T>(fn: (dispose: () => void) => T, root?: Root) {
-  const prev = ROOT;
-  ROOT = root ?? new Root();
-  if (prev) {
-    if (prev._current) {
-      prev._current._add(ROOT)
-    } else {
-      prev._add(ROOT);
-    }
-  };
-  const result = fn(ROOT._dispose.bind(ROOT));
-  ROOT = prev;
-  return result
 }
 
 export class Computation<T = unknown> extends Scope {
@@ -111,7 +95,7 @@ export class Computation<T = unknown> extends Scope {
         EFFECT_QUEUE.push(this as Computation<unknown>);
       }
       this.#val = undefined as any;
-      if (this.#root._current) this.#root._current._add(this)
+      if (COMPUTED) COMPUTED._add(this)
     } else {
       this.#val = val as T;
       this.#id = this.#root._id();
@@ -119,15 +103,15 @@ export class Computation<T = unknown> extends Scope {
   }
 
   #update() {
-    const root = this.#root, prevCurrent = root._current;
+    const root = this.#root, prevCurrent = COMPUTED;
     if (this.#isDirty) {
       super._dispose();
-      root._current = this as Computation<unknown>;
+      COMPUTED = this as Computation<unknown>;
       root._tracking.push(this as Computation<unknown>);
       this.#sources = 0;
       this.#val = this.#fn!();
       this.#isDirty = false;
-      root._current = prevCurrent;
+      COMPUTED = prevCurrent;
       root._tracking.pop();
     }
     if (prevCurrent) {
@@ -194,12 +178,32 @@ export function queueTick() {
   }
 }
 
+export function getScope(): Scope | null {
+  return COMPUTED ?? ROOT
+}
+
 export function onDispose<T = unknown>(fn: ((prevValue: T) => void)) {
-  const current = ROOT?._current;
-  if (current) {
-    current._addDisposal(fn as ((prevValue: unknown) => void));
-  } else {
-    ROOT?._addDisposal(fn);
+  getScope()?._addDisposal(fn);
+}
+
+export function root<T>(fn: (dispose: () => void) => T, root?: Root) {
+  const prevRoot = ROOT;
+  const prevScope = getScope();
+  ROOT = root ?? new Root();
+  prevScope?._add(ROOT);
+  const result = fn(ROOT._dispose.bind(ROOT));
+  ROOT = prevRoot;
+  return result
+}
+
+export function withScope(fn: () => void, scope: Scope) {
+  if (scope instanceof Root) {
+    root(fn, scope)
+  } else if (scope) {
+    const prevComputed = COMPUTED;
+    COMPUTED = scope as Computation;
+    fn();
+    COMPUTED = prevComputed;
   }
 }
 

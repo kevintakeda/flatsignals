@@ -59,44 +59,44 @@ test("unsubscribe invisible dependencies", () => {
   })
 });
 
-// test("nested effects run once", () => {
-//   root(() => {
-//     const a = signal(2);
-//     const spyX = vi.fn(() => a.val);
-//     const spyY = vi.fn(() => a.val);
-//     const spyZ = vi.fn(() => a.val);
-//     effect(() => {
-//       spyX();
-//       effect(() => {
-//         spyY();
-//         effect(() => {
-//           spyZ();
-//         });
-//       });
-//     });
+test("nested effects run once", () => {
+  root(() => {
+    const a = signal(2);
+    const spyX = vi.fn(() => a.val);
+    const spyY = vi.fn(() => a.val);
+    const spyZ = vi.fn(() => a.val);
+    effect(() => {
+      spyX();
+      effect(() => {
+        spyY();
+        effect(() => {
+          spyZ();
+        });
+      });
+    });
 
-//     expect(spyX).toHaveBeenCalledTimes(0);
-//     expect(spyY).toHaveBeenCalledTimes(0);
-//     expect(spyZ).toHaveBeenCalledTimes(0);
+    expect(spyX).toHaveBeenCalledTimes(0);
+    expect(spyY).toHaveBeenCalledTimes(0);
+    expect(spyZ).toHaveBeenCalledTimes(0);
 
-//     tick();
-//     expect(spyX).toHaveBeenCalledTimes(1);
-//     expect(spyY).toHaveBeenCalledTimes(1);
-//     expect(spyZ).toHaveBeenCalledTimes(1);
+    tick();
+    expect(spyX).toHaveBeenCalledTimes(1);
+    expect(spyY).toHaveBeenCalledTimes(1);
+    expect(spyZ).toHaveBeenCalledTimes(1);
 
-//     a.val = 4;
-//     a.val = 8;
-//     expect(spyX).toHaveBeenCalledTimes(1);
-//     expect(spyY).toHaveBeenCalledTimes(1);
-//     expect(spyZ).toHaveBeenCalledTimes(1);
+    a.val = 4;
+    a.val = 8;
+    expect(spyX).toHaveBeenCalledTimes(1);
+    expect(spyY).toHaveBeenCalledTimes(1);
+    expect(spyZ).toHaveBeenCalledTimes(1);
 
-//     tick();
-//     expect(spyX).toHaveBeenCalledTimes(2);
-//     expect(spyY).toHaveBeenCalledTimes(2);
-//     expect(spyZ).toHaveBeenCalledTimes(2);
-//     expect(a.val).toBe(8);
-//   })
-// });
+    tick();
+    expect(spyX).toHaveBeenCalledTimes(2);
+    expect(spyY).toHaveBeenCalledTimes(2);
+    expect(spyZ).toHaveBeenCalledTimes(2);
+    expect(a.val).toBe(8);
+  })
+});
 
 test("dispose effects", () => {
   root(() => {

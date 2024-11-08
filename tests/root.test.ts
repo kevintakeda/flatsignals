@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { root, signal, tick, onDispose, effect, dispose, channel, computed, Computed, DataSignal } from "../src/index.js";
+import { root, signal, tick, onDispose, effect, channel, computed, Computed, DataSignal } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -83,7 +83,63 @@ test("channel", () => {
 
     expect(spyOuter).toBeCalledTimes(2);
     expect(spyOuter).toBeCalledWith(20);
-
-    dispose();
   });
+});
+
+
+test("scoped", () => {
+  const spyEffectCalled = vi.fn();
+  const spyBCalled = vi.fn();
+  const spyACalled = vi.fn();
+  const inner = vi.fn();
+
+  root(() => {
+    const a = signal("a");
+    let updateInner!: () => void;
+    effect(() => {
+      spyEffectCalled();
+      if (a.val === "b") {
+        root(() => {
+          spyBCalled();
+          const $ = signal("$");
+          effect(() => {
+            $.val;
+            inner();
+          })
+          updateInner = () => $.val = $.val + $.val
+        });
+      } else {
+        root(() => {
+          spyACalled();
+        });
+      }
+    })
+
+    tick();
+    expect(spyEffectCalled).toBeCalledTimes(1);
+    expect(spyACalled).toBeCalledTimes(1);
+    expect(spyBCalled).toBeCalledTimes(0);
+    expect(inner).toBeCalledTimes(0);
+
+    a.val = "b";
+    tick();
+    expect(spyEffectCalled).toBeCalledTimes(2);
+    expect(spyBCalled).toBeCalledTimes(1);
+    expect(spyACalled).toBeCalledTimes(1);
+    expect(inner).toBeCalledTimes(1);
+
+    updateInner();
+    tick();
+    expect(inner).toBeCalledTimes(2);
+
+    a.val = "a";
+    tick();
+    expect(spyEffectCalled).toBeCalledTimes(3);
+    expect(inner).toBeCalledTimes(2);
+
+    updateInner();
+    tick();
+    expect(spyEffectCalled).toBeCalledTimes(3);
+    expect(inner).toBeCalledTimes(2);
+  })
 });

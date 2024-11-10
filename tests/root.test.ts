@@ -3,7 +3,7 @@ import { channel, computed, Computed, DataSignal, effect, onDispose, root, signa
 
 test("untracked", () => {
   const spy = vi.fn();
-  let S!: DataSignal;
+  let S!: DataSignal<number>;
   root(() => {
     S = signal(0);
     S.val;
@@ -11,7 +11,7 @@ test("untracked", () => {
   });
 
   expect(spy).toBeCalledTimes(1);
-  S.val = true;
+  S.val = 1;
   expect(spy).toBeCalledTimes(1);
 });
 

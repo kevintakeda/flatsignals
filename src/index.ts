@@ -1,22 +1,35 @@
 let ROOT: Root | null = null,
   COMPUTED: Computation | null = null,
   EFFECT_QUEUE: Array<Computation> = [],
+  SPARK_QUEUE: Array<Spark> = [],
   QUEUED = false,
   SCHEDULER: (() => void) | undefined;
+
+export interface StandaloneEffect<T> {
+  (val: T): ((val: T) => void) | T
+}
 
 export interface DataSignal<T = unknown> {
   val: T,
   readonly peek: T | undefined,
+  on: (fn: StandaloneEffect<T>) => (() => void)
 };
-
-export interface Channel<T = unknown> {
-  val: T,
-  readonly peek: T | undefined,
-};
-
 export interface Computed<T = unknown> {
   readonly val: T,
   readonly peek: T | undefined,
+  on: (fn: StandaloneEffect<T>) => (() => void)
+};
+export interface Channel<T = unknown> extends DataSignal<T> { };
+
+interface Spark<T = unknown> {
+  /* @internal */
+  _ref: Computation,
+  /* @internal */
+  _fn: (val: T) => ((val: T) => void) | T,
+  /* @internal cleanup */
+  _cleanup: ((val: T) => void) | null,
+  /* @internal executing */
+  _executing: boolean,
 };
 
 export class Scope {
@@ -81,6 +94,7 @@ export class Computation<T = unknown> extends Scope {
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
   #isEffect: boolean = false;
+  #sparks: Array<Spark> | undefined;
   equals = defaultEquality;
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
@@ -130,8 +144,10 @@ export class Computation<T = unknown> extends Scope {
 
   set val(val: T) {
     if (this.equals(val, this.#val)) return;
+    this.#emit();
     for (const item of this.#root._computeds) {
       if (!item.#isDirty && (item.#sources & this.#id) !== 0) {
+        item.#emit();
         item.#isDirty = true;
         if (item.#isEffect) {
           EFFECT_QUEUE.push(item);
@@ -140,10 +156,38 @@ export class Computation<T = unknown> extends Scope {
       }
     }
     this.#val = val as T;
+    this.#emit();
   }
 
   get peek() {
     return this.#val
+  }
+
+  #emit() {
+    if (this.#sparks) for (const spark of this.#sparks) {
+      if (!spark._executing) {
+        SPARK_QUEUE.push(spark)
+        spark._executing = true;
+      }
+    }
+  }
+
+  on(_fn: StandaloneEffect<T>) {
+    if (!this.#sparks) this.#sparks = [];
+    const spark: Spark<T> = { _ref: this as Computation<unknown>, _fn, _executing: true, _cleanup: null };
+    this.#sparks.push(spark as Spark<unknown>)
+    SPARK_QUEUE.push(spark as Spark<unknown>)
+    return () => this.#unsubscribe.bind(this)(spark as Spark<unknown>)
+  }
+
+  #unsubscribe(spark: Spark) {
+    if (this.#sparks) {
+      const idx = this.#sparks.indexOf(spark);
+      if (idx !== -1) {
+        this.#sparks[idx]._cleanup?.(this.val);
+        this.#sparks.slice(idx, 1)
+      }
+    }
   }
 
   /* @internal */
@@ -155,6 +199,7 @@ export class Computation<T = unknown> extends Scope {
       arr[last].#id = this.#id;
       arr.pop();
     }
+    this.#sparks = undefined;
     this.#fn = undefined;
     this.#sources = 0;
     this.#isDirty = false;
@@ -171,8 +216,19 @@ function defaultEquality(a: unknown, b: unknown) {
 }
 
 export function tick() {
-  for (const el of EFFECT_QUEUE) el.val
-  EFFECT_QUEUE = []
+  if (SPARK_QUEUE.length) {
+    for (const el of SPARK_QUEUE) {
+      el._cleanup?.(el._ref.val);
+      const output = el._fn(el._ref.val);
+      if (output) el._cleanup;
+      el._executing = false;
+    };
+    SPARK_QUEUE = [];
+  }
+  if (EFFECT_QUEUE.length) {
+    for (const el of EFFECT_QUEUE) el.val
+    EFFECT_QUEUE = []
+  }
 }
 
 export function queueTick() {
@@ -215,18 +271,12 @@ export function autoTick(fn = queueTick) {
   SCHEDULER = fn;
 }
 
-export function channel<T>(outer: DataSignal<T> | Computed<T> | Computed): Channel {
+export function channel<T>(outer: DataSignal<T> | Computed<T>): Channel<T> {
   if (!(outer instanceof Computation)) throw new Error();
-  let updating = false;
   const inner = new Computation<T>(undefined, outer.peek);
-  const outerEffect = root(() => effect(() => {
-    if (!updating) inner.val = outer.val
-    return outer.val;
-  }), outer._getRoot());
-  inner._addDisposal(() => outerEffect(true));
+  inner._addDisposal(outer.on((val) => inner.val = val));
   return Object.assign(inner, {
     set val(v: T) {
-      updating = true
       outer.val = v;
     }
   });

@@ -4,7 +4,8 @@
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "strict": true,
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals"],
+    "stripInternal": true
   },
   "include": ["src", "tests"],
   "exclude": ["dist", "node_modules"]

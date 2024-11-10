@@ -1,13 +1,14 @@
 # FlatSignals
 
-(WIP) FlatSignals is an extremely fast reactivity library under 1kb.
+(WIP) FlatSignals is an extremely fast reactivity library (~1kb).
 
 - **No graph traversals**
-- Tiny, under 1kb
+- Light (~1kb)
 - Great for simple usecases
 - Auto un/tracking of dynamic dependencies
 - Auto disposals
 - Computations are lazy by default
+- Batteries included
 
 ## Limitations
 

@@ -1,5 +1,5 @@
-import { vi, expect, test } from "vitest";
-import { root, signal, tick, onDispose, effect, channel, computed, Computed, DataSignal } from "../src/index.js";
+import { expect, test, vi } from "vitest";
+import { channel, computed, Computed, DataSignal, effect, onDispose, root, signal, tick } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -85,7 +85,6 @@ test("channel", () => {
     expect(spyOuter).toBeCalledWith(20);
   });
 });
-
 
 test("scoped", () => {
   const spyEffectCalled = vi.fn();

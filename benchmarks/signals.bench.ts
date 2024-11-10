@@ -2,6 +2,7 @@ import { bench, describe } from 'vitest';
 import { FlatSignalsFramework, FrameworkComputed, FrameworkSignal, MaverickSignalsFramework, PreactSignalsFramework, ReactivelyFramework, type FrameworkBenchmarkApi } from './frameworks';
 
 function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
+
   const x0 = op(FlatSignalsFramework);
   bench(FlatSignalsFramework.name, () => {
     x0()
@@ -23,9 +24,9 @@ function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
   });
 }
 
-describe("wide propagation", () => {
+describe("wide propagation (32x)", () => {
   function op(api: FrameworkBenchmarkApi) {
-    const width = 20;
+    const width = 32;
     return api.root(() => {
       let head = api.signal(0);
       let last = head as FrameworkComputed<number>;
@@ -57,9 +58,9 @@ describe("wide propagation", () => {
 });
 
 
-describe("deep propagation", () => {
+describe("deep propagation (32x)", () => {
   function op(api: FrameworkBenchmarkApi) {
-    const height = 20;
+    const height = 32;
     return api.root(() => {
       let head = api.signal(0);
       let current = head as FrameworkComputed<number>;
@@ -108,31 +109,53 @@ describe("dynamic dependencies", () => {
   runAll(op);
 });
 
-describe("divergent effects", () => {
-  function op(api: FrameworkBenchmarkApi) {
+function testNtoN(sources: number, effects: number, times: number) {
+  return function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
-      const x = api.signal(1);
-      let count = 0;
-      for (let index = 0; index < 10; index++) {
-        const a = api.computed(() => x.get());
-        const b = api.computed(() => a.get());
-        const c = api.computed(() => b.get());
-        const d = api.computed(() => c.get());
-
-        api.effect(() => { x.get(); count++; });
-        api.effect(() => { a.get(); count++; });
-        api.effect(() => { b.get(); count++; });
-        api.effect(() => { c.get(); count++; });
-        api.effect(() => { d.get(); count++; });
+      let count = 0, all: any[] = [];
+      for (let i = 0; i < times; i++) {
+        const local: any[] = []
+        for (let i = 0; i < sources; i++) {
+          const s = api.signal(i);
+          all.push(s)
+          local.push(s)
+        }
+        for (let i = 0; i < effects; i++) {
+          api.effect(() => { local.forEach(el => el.get()); count++; });
+        }
       }
       return () => {
         count = 0;
         api.runSync(() => {
-          x.set(x.get() + 1);
+          all.forEach(el => el.set(el.get() + 1));
         });
-        console.assert(count === 10 * 5, count);
+        console.assert(count === times * effects, api.name, count);
       }
     });
   }
+}
+
+describe("1 source to 32 effects", () => {
+  const op = testNtoN(1, 32, 1)
+  runAll(op);
+});
+
+describe("32 sources to 1 effect", () => {
+  const op = testNtoN(32, 1, 1)
+  runAll(op);
+});
+
+describe("1 source to 1 effect (8x)", () => {
+  const op = testNtoN(1, 1, 8)
+  runAll(op);
+});
+
+describe("1 source to 2 effects (8x)", () => {
+  const op = testNtoN(1, 2, 8)
+  runAll(op);
+});
+
+describe("2 sources to 1 effect (8x)", () => {
+  const op = testNtoN(2, 1, 8)
   runAll(op);
 });

@@ -81,13 +81,13 @@ export class Computation<T = unknown> extends Scope {
   #tick: (() => void) | undefined = SCHEDULER;
   #isDirty = true;
   #isEffect: boolean = false;
-  equals = (a: unknown, b: unknown) => a === b;
+  equals = defaultEquality;
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
     super();
     if (!ROOT) ROOT = new Root()
     this.#root = ROOT;
-    if (compute !== undefined) {
+    if (compute) {
       this.#fn = compute;
       this.#id = this.#root._computeds.push(this as Computation<unknown>) - 1;
       if (effect) {
@@ -166,6 +166,10 @@ export class Computation<T = unknown> extends Scope {
   }
 }
 
+function defaultEquality(a: unknown, b: unknown) {
+  return a === b
+}
+
 export function tick() {
   for (const el of EFFECT_QUEUE) el.val
   EFFECT_QUEUE = []
@@ -214,7 +218,7 @@ export function autoTick(fn = queueTick) {
 export function channel<T>(outer: DataSignal<T> | Computed<T> | Computed): Channel {
   if (!(outer instanceof Computation)) throw new Error();
   let updating = false;
-  const inner = new Computation<T>(undefined, outer.val);
+  const inner = new Computation<T>(undefined, outer.peek);
   const outerEffect = root(() => effect(() => {
     if (!updating) inner.val = outer.val
     return outer.val;

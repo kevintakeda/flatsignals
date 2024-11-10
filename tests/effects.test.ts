@@ -172,7 +172,7 @@ test("effect with deep dependencies", () => {
   })
 });
 
-test("top to bottom calls", () => {
+test("effects using sources from top to bottom", () => {
   let count = vi.fn();
   return root(() => {
     const x = signal("x");

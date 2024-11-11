@@ -1,12 +1,11 @@
 let ROOT: Root | null = null,
   COMPUTED: Computation | null = null,
   EFFECT_QUEUE: Array<Computation> = [],
-  SPARK_QUEUE: Array<Spark> = [],
   QUEUED = false,
   SCHEDULER: (() => void) | undefined;
 
 export interface StandaloneEffect<T> {
-  (val: T): ((val: T) => void) | T
+  (val: T): ((val: T) => void) | void
 }
 
 export interface DataSignal<T = unknown> {
@@ -25,11 +24,9 @@ interface Spark<T = unknown> {
   /* @internal */
   _ref: Computation,
   /* @internal */
-  _fn: (val: T) => ((val: T) => void) | T,
+  _fn: StandaloneEffect<T>,
   /* @internal cleanup */
-  _cleanup: ((val: T) => void) | null,
-  /* @internal executing */
-  _executing: boolean,
+  _cleanup: ((val: T) => void) | null | undefined
 };
 
 export class Scope {
@@ -70,6 +67,8 @@ export class Root extends Scope {
   _tracking: Array<Computation> = [];
   /* @internal */
   _i = 0;
+  /* @internal */
+  _spy = -1;
 
   /* @internal */
   _dispose() {
@@ -80,7 +79,7 @@ export class Root extends Scope {
   }
   /* @internal */
   _id() {
-    if (this._i > 31) throw new Error()
+    if (this._i > 31) throw new Error("root max: 32 channels")
     return 1 << this._i++
   }
 }
@@ -113,6 +112,7 @@ export class Computation<T = unknown> extends Scope {
     } else {
       this.#val = val as T;
       this.#id = this.#root._id();
+      this._add(this);
     }
   }
 
@@ -131,6 +131,7 @@ export class Computation<T = unknown> extends Scope {
     if (prevCurrent) {
       prevCurrent.#sources |= this.#sources;
     }
+    this.#root._spy |= this.#sources
   }
 
   get val(): T {
@@ -144,19 +145,21 @@ export class Computation<T = unknown> extends Scope {
 
   set val(val: T) {
     if (this.equals(val, this.#val)) return;
-    this.#emit();
-    for (const item of this.#root._computeds) {
-      if (!item.#isDirty && (item.#sources & this.#id) !== 0) {
-        item.#emit();
-        item.#isDirty = true;
-        if (item.#isEffect) {
-          EFFECT_QUEUE.push(item);
-          this.#tick?.();
-        }
-      }
-    }
     this.#val = val as T;
     this.#emit();
+    if ((this.#root._spy & this.#id) !== 0) {
+      for (const item of this.#root._computeds) {
+        if (!item.#isDirty && (item.#sources & this.#id) !== 0) {
+          item.#isDirty = true;
+          item.#emit();
+          if (item.#isEffect) {
+            EFFECT_QUEUE.push(item);
+            this.#tick?.();
+          }
+        }
+      }
+      this.#root._spy &= ~this.#id;
+    }
   }
 
   get peek() {
@@ -165,18 +168,16 @@ export class Computation<T = unknown> extends Scope {
 
   #emit() {
     if (this.#sparks) for (const spark of this.#sparks) {
-      if (!spark._executing) {
-        SPARK_QUEUE.push(spark)
-        spark._executing = true;
-      }
+      if (typeof spark._cleanup === "function")
+        spark._cleanup(spark._ref.val);
+      spark._cleanup = spark._fn(spark._ref.val)!;
     }
   }
 
   on(_fn: StandaloneEffect<T>) {
     if (!this.#sparks) this.#sparks = [];
-    const spark: Spark<T> = { _ref: this as Computation<unknown>, _fn, _executing: true, _cleanup: null };
+    const spark: Spark<T> = { _ref: this as Computation<unknown>, _fn, _cleanup: null };
     this.#sparks.push(spark as Spark<unknown>)
-    SPARK_QUEUE.push(spark as Spark<unknown>)
     return () => this.#unsubscribe.bind(this)(spark as Spark<unknown>)
   }
 
@@ -185,7 +186,11 @@ export class Computation<T = unknown> extends Scope {
       const idx = this.#sparks.indexOf(spark);
       if (idx !== -1) {
         this.#sparks[idx]._cleanup?.(this.val);
-        this.#sparks.slice(idx, 1)
+        if (this.#sparks.length > 1) {
+          const last = this.#sparks.length;
+          [this.#sparks[idx], this.#sparks[last]] = [this.#sparks[last], this.#sparks[idx]];
+        }
+        this.#sparks.pop();
       }
     }
   }
@@ -194,9 +199,12 @@ export class Computation<T = unknown> extends Scope {
   _dispose(detach = false) {
     super._dispose();
     if (detach && this.#fn) {
-      const arr = this.#root._computeds, last = arr.length - 1;
-      [arr[this.#id], arr[last]] = [arr[last], arr[this.#id]];
-      arr[last].#id = this.#id;
+      const arr = this.#root._computeds;
+      if (arr.length > 1) {
+        const last = arr.length - 1;
+        [arr[this.#id], arr[last]] = [arr[last], arr[this.#id]];
+        arr[last].#id = this.#id;
+      }
       arr.pop();
     }
     this.#sparks = undefined;
@@ -216,15 +224,6 @@ function defaultEquality(a: unknown, b: unknown) {
 }
 
 export function tick() {
-  if (SPARK_QUEUE.length) {
-    for (const el of SPARK_QUEUE) {
-      el._cleanup?.(el._ref.val);
-      const output = el._fn(el._ref.val);
-      if (output) el._cleanup;
-      el._executing = false;
-    };
-    SPARK_QUEUE = [];
-  }
   if (EFFECT_QUEUE.length) {
     for (const el of EFFECT_QUEUE) el.val
     EFFECT_QUEUE = []

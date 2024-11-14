@@ -1,6 +1,6 @@
 import { bench, describe } from 'vitest';
 import { FlatSignalsFramework, FrameworkComputed, FrameworkSignal, MaverickSignalsFramework, PreactSignalsFramework, ReactivelyFramework, type FrameworkBenchmarkApi } from './frameworks';
-import { mulberry32, sourcesInEffects } from './utils';
+import { denseBench, mulberry32, packedBench } from './utils';
 
 function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
 
@@ -25,7 +25,7 @@ function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
   });
 }
 
-describe("wide propagation (64x)", () => {
+describe("wide propagation (32x)", () => {
   function op(api: FrameworkBenchmarkApi) {
     const width = 32;
     return api.root(() => {
@@ -58,8 +58,7 @@ describe("wide propagation (64x)", () => {
   runAll(op);
 });
 
-
-describe("deep propagation (64x)", () => {
+describe("deep propagation (32x)", () => {
   function op(api: FrameworkBenchmarkApi) {
     const height = 32;
     return api.root(() => {
@@ -91,30 +90,36 @@ describe("deep propagation (64x)", () => {
   runAll(op);
 });
 
-describe("dynamic dependencies (60 updates/batch)", () => {
+describe("highly dynamic", () => {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
       const rnd = mulberry32(0x9999);
       const trigger = api.signal(true);
-      const signals = [
-        api.signal("a"),
-        api.signal("b"),
-        api.signal("c"),
-        api.signal("d"),
-        api.signal("e"),
-      ]
-      const end = api.computed(() => {
-        trigger.get();
-        signals[Math.floor(rnd() % signals.length)].get();
-        signals[Math.floor(rnd() % signals.length)].get();
+      const signals: FrameworkSignal<number>[] = []
+      for (let i = 0; i < 10; i++) {
+        signals.push(api.signal(i))
+      }
+      const between1 = api.computed(() => {
+        const x = signals[Math.floor(rnd() % signals.length)].get();
+        const y = signals[Math.floor(rnd() % signals.length)].get();
+        const z = signals[Math.floor(rnd() % signals.length)].get();
+        return x + y + z;
       });
+      const between2 = api.computed(() => {
+        const x = signals[Math.floor(rnd() % signals.length)].get();
+        const y = signals[Math.floor(rnd() % signals.length)].get();
+        const z = signals[Math.floor(rnd() % signals.length)].get();
+        return x + y + z;
+      });
+      const end = api.computed(() => {
+        return trigger.get() ? between1.get() : between2.get();
+      })
+      api.effect(() => end.get());
       let i = 0;
       return () => {
         api.runSync(() => {
-          for (let index = 0; index < 60; index++) {
-            trigger.set(i++ % 2 === 0);
-            end.get();
-          }
+          trigger.set(i++ % 2 === 0);
+          end.get();
         })
       }
     });
@@ -122,27 +127,37 @@ describe("dynamic dependencies (60 updates/batch)", () => {
   runAll(op);
 });
 
-describe("1 source in 1 effect (32x, 60 updates/batch)", () => {
-  const op = sourcesInEffects(1, 1, 32, 60)
+describe("packed (8x sources)", () => {
+  const op = packedBench(8, 1, 0.3)
   runAll(op);
 });
 
-describe("1 source in 32 effects (60 updates/batch)", () => {
-  const op = sourcesInEffects(1, 32, 1, 60)
+describe("packed (24x sources)", () => {
+  const op = packedBench(24, 24, 0.3)
   runAll(op);
 });
 
-describe("6 sources in 32 effects (4x, 60 updates/batch)", () => {
-  const op = sourcesInEffects(6, 32, 4, 60)
+describe("packed (32x sources)", () => {
+  const op = packedBench(32, 32, 0.3)
   runAll(op);
 });
 
-describe("6 sources in 64 effects (4x, 60 updates/batch)", () => {
-  const op = sourcesInEffects(6, 64, 4, 60)
+describe("dense (2x layers)", () => {
+  const op = denseBench(4, 2, 2)
   runAll(op);
 });
 
-describe("6 sources in 512 effects (4x, 60 updates/batch)", () => {
-  const op = sourcesInEffects(6, 128, 4, 60)
+describe("dense (4x layers)", () => {
+  const op = denseBench(4, 4, 2)
+  runAll(op);
+});
+
+describe("dense (8x layers)", () => {
+  const op = denseBench(4, 8, 2)
+  runAll(op);
+});
+
+describe("dense (12x layers)", () => {
+  const op = denseBench(4, 12, 2)
   runAll(op);
 });

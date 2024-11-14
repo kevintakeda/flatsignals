@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { channel, computed, Computed, DataSignal, effect, onDispose, root, signal, tick } from "../src/index.js";
+import { Computation, computed, DataSignal, effect, onDispose, root, signal, tick } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -24,7 +24,7 @@ test("should not throw if dispose called during active disposal process", () => 
 
 test("should dispose of inner computations", () => {
   let $x!: DataSignal<number>;
-  let $y!: Computed<number>;
+  let $y!: Computation<number>;
 
   const _memo = vi.fn(() => $x.val + 10);
   const _effect = vi.fn(() => $x.val + 10);
@@ -48,42 +48,6 @@ test("should dispose of inner computations", () => {
   // expect($y!.val).toBe(null);
   expect(_memo).toHaveBeenCalledTimes(1);
   expect(_effect).toHaveBeenCalledTimes(0);
-});
-
-
-test("channel", () => {
-  const spyInner = vi.fn();
-  const spyOuter = vi.fn();
-
-  root(() => {
-    const global = signal(10);
-    effect(() => {
-      spyOuter(global.val);
-    })
-
-    root(() => {
-      const inner = channel(global)
-      effect(() => {
-        spyInner(inner.val);
-      });
-    })
-
-    global.val = 5;
-    tick();
-    expect(spyInner).toBeCalledTimes(1);
-    expect(spyInner).toBeCalledWith(5);
-
-    expect(spyOuter).toBeCalledTimes(1);
-    expect(spyOuter).toBeCalledWith(5);
-
-    global.val = 20;
-    tick();
-    expect(spyInner).toBeCalledTimes(2);
-    expect(spyInner).toBeCalledWith(20);
-
-    expect(spyOuter).toBeCalledTimes(2);
-    expect(spyOuter).toBeCalledWith(20);
-  });
 });
 
 test("scoped", () => {

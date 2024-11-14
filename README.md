@@ -10,10 +10,9 @@ FlatSignals is an extremely fast reactivity library (~1kb).
 
 ## When to use this library
 
-- The dependencies in effects/computeds changes very frequently.
-- The dependency graph is very dense.
-- Most effects/computeds need to be executed frequently anyway.
-- A source change triggers most of your effects/computeds to rerun.
+- Your app has isolated sections, each needing a few reactive values.
+- Most of your reactive code runs when data changes anyway, making traditional reactive libraries' tracking algorithm overhead unnecessary.
+- Your reactive code often changes which values it depends on.
 
 ## Limitations
 

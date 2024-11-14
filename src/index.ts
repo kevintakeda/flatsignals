@@ -4,45 +4,22 @@ let ROOT: Root | null = null,
   QUEUED = false,
   SCHEDULER: (() => void) | undefined;
 
-interface Disposable {
-  _dispose(): void;
-}
 
-export class Scope implements Disposable {
+export class Disposable {
   /* @internal */
-  #children: Array<Disposable> = [];
+  _running = false;
   /* @internal */
-  #disposals: Array<((...a: any[]) => void)> = [];
+  _disposals: (() => void)[] = [];
   /* @internal */
-  #isDisposing: boolean = false;
-
-  /* @internal */
-  _add(scope: Disposable): void {
-    this.#children.push(scope);
-  };
-
-  /* @internal */
-  _addDisposal(disposal: ((...a: any[]) => void)): void {
-    this.#disposals.push(disposal);
-  };
-
-  /* @internal */
-  _dispose(): void {
-    if (this.#isDisposing) return;
-    this.#isDisposing = true;
-    if (this.#disposals.length) {
-      for (const el of this.#disposals) el();
-      this.#disposals = [];
-    }
-    if (this.#children.length) {
-      for (const el of this.#children) el._dispose();
-      this.#children = [];
-    }
-    this.#isDisposing = false;
+  _dispose() {
+    if (this._running) return;
+    this._running = true;
+    this._disposals.forEach(fn => fn())
+    this._running = false;
   }
 }
 
-export class Root extends Scope {
+export class Root extends Disposable {
   /* @internal */
   _computeds: Array<Computation> = [];
   /* @internal */
@@ -56,6 +33,7 @@ export class Root extends Scope {
     for (const el of this._computeds) el._dispose();
     this._computeds = [];
     this._i = 0;
+    this._spy = -1;
   }
   /* @internal */
   _id() {
@@ -64,7 +42,7 @@ export class Root extends Scope {
   }
 }
 
-export class DataSignal<T = any> implements Disposable {
+export class DataSignal<T = any> {
   #root: Root;
   #val: T;
   #id;
@@ -75,11 +53,13 @@ export class DataSignal<T = any> implements Disposable {
     this.#root = ROOT;
     this.#val = val as T;
     this.#id = this.#root._id();
-    if (COMPUTED) COMPUTED._add(this)
   }
 
   get val(): T {
-    if (COMPUTED) COMPUTED._sources |= this.#id
+    if (COMPUTED) {
+      COMPUTED._sources |= this.#id
+      this.#root._spy |= this.#id
+    }
     return this.#val as T
   }
 
@@ -99,14 +79,9 @@ export class DataSignal<T = any> implements Disposable {
       this.#root._spy &= ~this.#id;
     }
   }
-
-  /* @internal */
-  _dispose() {
-    this.#id = -1;
-  }
 }
 
-export class Computation<T = unknown> extends Scope {
+export class Computation<T = unknown> extends Disposable {
   #root: Root;
   #val: T;
   #fn: (() => T) | undefined;
@@ -119,7 +94,7 @@ export class Computation<T = unknown> extends Scope {
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
     super();
-    if (!ROOT) ROOT = new Root()
+    if (!ROOT) ROOT = new Root();
     this.#root = ROOT;
     this.#fn = compute;
     this.#val = val!;
@@ -129,7 +104,9 @@ export class Computation<T = unknown> extends Scope {
       EFFECT_QUEUE.push(this as Computation<unknown>);
     }
     this.#val = undefined as any;
-    if (COMPUTED) COMPUTED._add(this)
+    if (COMPUTED) {
+      COMPUTED._disposals.push(this._dispose.bind(this))
+    }
   }
 
   get val(): T {
@@ -141,11 +118,12 @@ export class Computation<T = unknown> extends Scope {
       this.#val = this.#fn!();
       this._dirty = false;
       COMPUTED = prevCurrent;
+      this.#root._spy |= this._sources
     }
     if (prevCurrent) {
       prevCurrent._sources |= this._sources;
+      this.#root._spy |= this._sources
     }
-    this.#root._spy |= this._sources
     return this.#val!
   }
 
@@ -156,7 +134,6 @@ export class Computation<T = unknown> extends Scope {
   /* @internal */
   _dispose() {
     super._dispose();
-    this.#fn = undefined;
     this._sources = 0;
     this._dirty = false;
   }
@@ -180,19 +157,19 @@ export function queueTick() {
   }
 }
 
-export function getScope(): Scope | null {
-  return COMPUTED ?? ROOT
+export function getScope(): Disposable | null {
+  return COMPUTED || ROOT
 }
 
-export function onDispose<T = unknown>(fn: ((prevValue: T) => void)) {
-  getScope()?._addDisposal(fn);
+export function onDispose(fn: (() => void)) {
+  getScope()?._disposals.push(fn)
 }
 
 export function root<T>(fn: (dispose: () => void) => T, root?: Root) {
   const prevRoot = ROOT;
   const prevScope = getScope();
   ROOT = root ?? new Root();
-  prevScope?._add(ROOT);
+  prevScope?._disposals.push(ROOT._dispose.bind(ROOT));
   const result = fn(ROOT._dispose.bind(ROOT));
   ROOT = prevRoot;
   return result

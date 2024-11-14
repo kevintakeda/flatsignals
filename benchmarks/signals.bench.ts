@@ -1,9 +1,8 @@
 import { bench, describe } from 'vitest';
 import { FlatSignalsFramework, FrameworkComputed, FrameworkSignal, MaverickSignalsFramework, PreactSignalsFramework, ReactivelyFramework, type FrameworkBenchmarkApi } from './frameworks';
-import { denseBench, mulberry32, packedBench } from './utils';
+import { denseBench, mulberry32, oneshotBench, packedBench } from './utils';
 
 function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
-
   const x0 = op(FlatSignalsFramework);
   bench(FlatSignalsFramework.name, () => {
     x0()
@@ -124,6 +123,26 @@ describe("highly dynamic", () => {
       }
     });
   }
+  runAll(op);
+});
+
+describe("oneshot 1 to 1 (8x)", () => {
+  const op = oneshotBench(1, 10, 8)
+  runAll(op);
+});
+
+describe("oneshot 1 to 1 (16x)", () => {
+  const op = oneshotBench(1, 1, 16)
+  runAll(op);
+});
+
+describe("oneshot 1 to 2 (16x)", () => {
+  const op = oneshotBench(1, 3, 16)
+  runAll(op);
+});
+
+describe("oneshot 1 to 3 (16x)", () => {
+  const op = oneshotBench(1, 3, 16)
   runAll(op);
 });
 

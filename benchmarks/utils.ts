@@ -89,3 +89,32 @@ export function denseBench(heads: number, layers: number, spread: number) {
   }
   return op
 }
+
+export function oneshotBench(sources: number, effects: number, times: number) {
+  return function op(api: FrameworkBenchmarkApi) {
+    return api.root(() => {
+      let count = 0;
+      const xs: FrameworkSignal[] = []
+      for (let t = 0; t < times; t++) {
+        for (let j = 0; j < sources; j++) {
+          const x = api.signal(1);
+          xs.push(x);
+          for (let i = 0; i < effects; i++) {
+            api.effect(() => {
+              x.get();
+              count++;
+            });
+          }
+        }
+      }
+
+      return () => {
+        count = 0
+        api.runSync(() => {
+          xs.forEach(x => x.set(x.get() + 1))
+        })
+        console.assert(count === sources * effects * times);
+      }
+    });
+  }
+}

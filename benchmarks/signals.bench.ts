@@ -67,27 +67,30 @@ describe("deep propagation (32x)", () => {
   runAll(op);
 });
 
-describe("highly dynamic", () => {
+describe("dynamic", () => {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
-      const rnd = mulberry32(0x9999);
       const trigger = api.signal(true);
       const signals: FrameworkSignal<number>[] = []
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 16; i++) {
         signals.push(api.signal(i))
       }
       const between1 = api.computed(() => {
-        const x = signals[Math.floor(rnd() % signals.length)].get();
-        const y = signals[Math.floor(rnd() % signals.length)].get();
-        const z = signals[Math.floor(rnd() % signals.length)].get();
-        return x + y + z;
+        let sum = 0;
+        for (let i = 0; i < signals.length; i++) {
+          sum += signals[i].get();
+        }
+        return sum
       });
+      api.effect(() => between1.get());
       const between2 = api.computed(() => {
-        const x = signals[Math.floor(rnd() % signals.length)].get();
-        const y = signals[Math.floor(rnd() % signals.length)].get();
-        const z = signals[Math.floor(rnd() % signals.length)].get();
-        return x + y + z;
+        let sum = 0;
+        for (let i = signals.length - 1; i > 0; i--) {
+          sum -= signals[i].get();
+        }
+        return sum
       });
+      api.effect(() => between2.get());
       const end = api.computed(() => {
         return trigger.get() ? between1.get() : between2.get();
       })
@@ -96,7 +99,6 @@ describe("highly dynamic", () => {
       return () => {
         api.runSync(() => {
           trigger.set(i++ % 2 === 0);
-          end.get();
         })
       }
     });
@@ -105,32 +107,32 @@ describe("highly dynamic", () => {
 });
 
 describe("batch 2 (4 sources)", () => {
-  const op = batchBench(1, 2, 4, 2)
+  const op = batchBench(4, 16, 2)
   runAll(op);
 });
 
 describe("batch 8 (16 sources)", () => {
-  const op = batchBench(1, 2, 16, 8)
+  const op = batchBench(16, 16, 8)
   runAll(op);
 });
 
 describe("batch 16 (32 sources)", () => {
-  const op = batchBench(1, 2, 32, 16)
+  const op = batchBench(16, 16, 16)
   runAll(op);
 });
 
-describe("packed (8 sources)", () => {
-  const op = packedBench(8, 1, 0.3)
+describe("packed (30%)", () => {
+  const op = packedBench(16, 16, 0.3)
   runAll(op);
 });
 
-describe("packed (24 sources)", () => {
-  const op = packedBench(24, 24, 0.3)
+describe("packed (60%)", () => {
+  const op = packedBench(16, 16, 0.6)
   runAll(op);
 });
 
-describe("packed (32 sources)", () => {
-  const op = packedBench(32, 32, 0.3)
+describe("packed (80%)", () => {
+  const op = packedBench(16, 16, 0.8)
   runAll(op);
 });
 

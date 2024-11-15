@@ -13,23 +13,25 @@ FlatSignals is an extremely fast reactivity library (~0.8kb).
 You can execute the [benchmarks](https://github.com/kevintakeda/flatsignals/tree/main/benchmarks) by running `pnpm bench`.
 
 ```bash
+ flatsignals - benchmarks/signals.bench.ts > dense (2x layers)
+    1.15x faster than @preact/signals
+    1.17x faster than @reactively/core
+    1.49x faster than @maverick-js/signals
+
   flatsignals - benchmarks/signals.bench.ts > dense (4x layers)
-    1.81x faster than @reactively/core
-    1.93x faster than @preact/signals
-    2.88x faster than @maverick-js/signals
-    5.74x faster than @solidjs/signals (new)
+    1.55x faster than @reactively/core
+    1.69x faster than @preact/signals
+    2.39x faster than @maverick-js/signals
 
   flatsignals - benchmarks/signals.bench.ts > dense (8x layers)
-    2.65x faster than @reactively/core
-    3.45x faster than @preact/signals
-    4.57x faster than @maverick-js/signals
-    10.30x faster than @solidjs/signals (new)
+    2.33x faster than @reactively/core
+    2.81x faster than @preact/signals
+    3.91x faster than @maverick-js/signals
 
   flatsignals - benchmarks/signals.bench.ts > dense (12x layers)
-    3.18x faster than @reactively/core
-    3.65x faster than @preact/signals
-    5.49x faster than @maverick-js/signals
-    10.37x faster than @solidjs/signals (new)
+    3.06x faster than @reactively/core
+    3.52x faster than @preact/signals
+    4.93x faster than @maverick-js/signals
 ```
 
 ## When to use this library

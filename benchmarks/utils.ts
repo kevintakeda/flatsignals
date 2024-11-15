@@ -10,16 +10,14 @@ export function mulberry32(a: number) {
   }
 }
 
-export function packedBench(sources: number, effects: number, densityFactor: number = 0.3, updatesPerBatch: number = 3) {
+export function packedBench(sources: number, effects: number, densityFactor: number = 0.3, updatesPerBatch: number = 1) {
   return function op(api: FrameworkBenchmarkApi) {
     const packing = densityFactor * sources;
     return api.root(() => {
       let head: (FrameworkSignal<number>)[] = [];
-      // let tail: (FrameworkComputed<number>)[] = [];
       for (let i = 0; i < sources; i++) {
         const x = api.signal(i);
         head.push(x);
-        // tail.push(api.computed(() => x.get()));
       }
 
       for (let j = 0; j < effects; j++) {
@@ -46,11 +44,11 @@ export function packedBench(sources: number, effects: number, densityFactor: num
   }
 }
 
-export function denseBench(heads: number, layers: number, spread: number) {
+export function denseBench(heads: number, layers: number, spread = 2, batchSize = 1) {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
-      const rnd2 = mulberry32(123456);
-      const rnd = mulberry32(0x9999);
+      const rnd2 = mulberry32(0x2222);
+      const rnd = mulberry32(0x1111);
       const allHeads: FrameworkSignal<number>[] = []
       for (let h = 0; h < heads; h++) {
         const head = api.signal(1);
@@ -73,16 +71,15 @@ export function denseBench(heads: number, layers: number, spread: number) {
           }
           lastLayer = currentLayer;
         }
-        for (const node of lastLayer) {
-          api.effect(() => node.get())
-        }
       }
       api.runSync(() => void 0);
       let i = 0;
       return () => {
         api.runSync(() => {
-          const idx = Math.floor(rnd() * allHeads.length)
-          allHeads[idx].set(i++);
+          for (let j = 0; j < batchSize; j++) {
+            const idx = Math.floor(rnd() * allHeads.length)
+            allHeads[idx].set(i++);
+          }
         })
       }
     });
@@ -90,28 +87,28 @@ export function denseBench(heads: number, layers: number, spread: number) {
   return op
 }
 
-export function batchBench(sources: number, effects: number, times: number, batchSize: number = 4) {
+export function batchBench(sources: number, width: number, batchSize: number = 4) {
   return function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
       const rnd = mulberry32(123456);
       let count = 0;
       const xs: FrameworkSignal[] = []
-      for (let t = 0; t < times; t++) {
-        for (let j = 0; j < sources; j++) {
-          const x = api.signal(1);
-          xs.push(x);
-          for (let i = 0; i < effects; i++) {
-            api.effect(() => {
-              x.get();
-              count++;
-            });
-          }
+      for (let j = 0; j < sources; j++) {
+        const x = api.signal(1);
+        xs.push(x);
+        for (let i = 0; i < width; i++) {
+          const c = api.computed(() => {
+            return x.get() + i;
+          });
+          api.effect(() => {
+            c.get();
+          });
         }
       }
 
       return () => {
         count = 0;
-        api.batch(() => {
+        api.runSync(() => {
           const start = Math.floor(rnd() * xs.length);
           for (let i = 0; i < batchSize; i++) {
             const pos = xs[(i + start) % xs.length]

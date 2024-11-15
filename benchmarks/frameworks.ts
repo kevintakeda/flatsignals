@@ -1,5 +1,5 @@
 import { Reactive, stabilize } from "@reactively/core";
-import { signal, effect, root, computed, flushSync, batch } from "../src/index.js"
+import { signal, effect, root, computed, flushSync } from "../src/index.js"
 import {
   signal as psignal,
   effect as peffect,
@@ -28,7 +28,6 @@ export interface FrameworkBenchmarkApi {
   computed<T>(fn: () => T): FrameworkComputed<T>;
   effect(fn: () => void): void;
   runSync<T>(fn: () => T): void;
-  batch(fn: () => void): void;
   root<T>(fn: () => T): T;
 }
 
@@ -71,11 +70,10 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
   },
   effect: (fn) => effect(fn),
   runSync: (fn) => {
-    batch(() => fn());
+    fn();
     flushSync();
   },
   root: (fn) => root(fn),
-  batch,
 };
 
 export const ReactivelyFramework: FrameworkBenchmarkApi = {
@@ -99,10 +97,6 @@ export const ReactivelyFramework: FrameworkBenchmarkApi = {
     stabilize();
   },
   root: (fn) => fn(),
-  batch: (fn) => {
-    fn();
-    stabilize();
-  },
 };
 
 export const PreactSignalsFramework: FrameworkBenchmarkApi = {
@@ -123,7 +117,6 @@ export const PreactSignalsFramework: FrameworkBenchmarkApi = {
   effect: (fn) => peffect(fn),
   runSync: (fn) => pbatch(fn),
   root: (fn) => fn(),
-  batch: (fn) => pbatch(fn),
 };
 
 export const MaverickSignalsFramework: FrameworkBenchmarkApi = {
@@ -147,8 +140,4 @@ export const MaverickSignalsFramework: FrameworkBenchmarkApi = {
     mtick();
   },
   root: (fn) => mroot(fn),
-  batch: (fn) => {
-    fn();
-    mtick();
-  },
 };

@@ -1,9 +1,8 @@
-let ROOT: Root | null = null,
+let ROOT_QUEUE: Array<Root> = [],
+  ROOT: Root | null = null,
   COMPUTED: Computation | null = null,
   EFFECT_QUEUE: Array<Computation> = [],
-  QUEUED = false,
-  BATCH: number | null = null,
-  BATCH_ROOT: Root | null = null;
+  QUEUED = false;
 
 export class Scope {
   /* @internal */
@@ -29,6 +28,8 @@ export class Root extends Scope {
   _computeds: Array<Computation> = [];
   /* @internal */
   _i = 0;
+  /* @internal */
+  #batch: number = 0;
 
   /* @internal */
   _dispose() {
@@ -44,9 +45,16 @@ export class Root extends Scope {
   }
 
   /* @internal */
-  _batch(signature: number) {
+  _queue(mask: number) {
+    if (!this.#batch) ROOT_QUEUE.push(this);
+    this.#batch |= mask;
+  }
+
+  /* @internal */
+  _flush() {
+    if (!this.#batch) return;
     for (const item of this._computeds) {
-      if (!item._dirty && (item._sources & signature) !== 0) {
+      if (!item._dirty && (item._sources & this.#batch) !== 0) {
         item._dirty = true;
         if (item._effect) {
           EFFECT_QUEUE.push(item);
@@ -54,6 +62,7 @@ export class Root extends Scope {
         }
       }
     }
+    this.#batch = 0;
   }
 }
 
@@ -78,12 +87,7 @@ export class DataSignal<T = any> {
   set val(val: T) {
     if (this.equals(val, this.#val)) return;
     this.#val = val as T;
-    if (BATCH === null) {
-      this.#root._batch(this.#id)
-    } else {
-      BATCH_ROOT = this.#root;
-      BATCH |= this.#id;
-    }
+    this.#root._queue(this.#id);
   }
   get peek() {
     return this.#val
@@ -112,12 +116,11 @@ export class Computation<T = unknown> extends Scope {
       this._effect = effect;
       EFFECT_QUEUE.push(this as Computation<unknown>);
     }
-    if (COMPUTED) {
-      COMPUTED._onDispose(this._dispose.bind(this))
-    }
+    if (COMPUTED) COMPUTED._onDispose(this._dispose.bind(this));
   }
 
   get val(): T {
+    this.#root._flush();
     const prevCurrent = COMPUTED;
     if (this._dirty) {
       super._dispose();
@@ -152,9 +155,13 @@ function defaultEquality(a: unknown, b: unknown) {
 }
 
 export function flushSync() {
+  if (ROOT_QUEUE.length) {
+    for (const el of ROOT_QUEUE) el._flush();
+    ROOT_QUEUE = [];
+  }
   if (EFFECT_QUEUE.length) {
-    for (const el of EFFECT_QUEUE) el.val
-    EFFECT_QUEUE = []
+    for (const el of EFFECT_QUEUE) el.val;
+    EFFECT_QUEUE = [];
   }
 }
 
@@ -204,12 +211,4 @@ export function computed<T = unknown>(val: (() => T)): Computation<T> {
 export function effect<T = unknown>(fn: (() => T)) {
   const sig = new Computation(fn, undefined, true);
   return sig._dispose.bind(sig);
-}
-
-export function batch(fn: () => void) {
-  BATCH = 0;
-  fn();
-  BATCH_ROOT?._batch(BATCH);
-  BATCH_ROOT = null;
-  BATCH = null;
 }

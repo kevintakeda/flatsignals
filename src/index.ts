@@ -24,8 +24,10 @@ export class Scope {
 }
 
 export class Root extends Scope {
-  /* @internal */
-  _computeds: Array<Computation> = [];
+  /* @internal computeds */
+  _c: Array<Computation> = [];
+  /* @internal disposed computeds */
+  _x: Array<number> = [];
   /* @internal */
   _i = 0;
   /* @internal */
@@ -34,14 +36,31 @@ export class Root extends Scope {
   /* @internal */
   _dispose() {
     super._dispose();
-    for (const el of this._computeds) el._dispose();
-    this._computeds = [];
+    for (const el of this._c) el._dispose();
+    this._c = [];
+    this._x = [];
     this._i = 0;
   }
-  /* @internal */
-  _id() {
+  /* @internal Add source */
+  _as() {
     if (this._i > 31) throw new Error("root max: 32 signals")
     return 1 << this._i++
+  }
+
+  /* @internal Add computed */
+  _ac(c: Computation) {
+    if (this._x.length) {
+      const u = this._x.pop()!;
+      this._c[u] = c;
+      return u
+    } else {
+      return this._c.push(c) - 1;
+    }
+  }
+
+  /* @internal Destroy computed */
+  _dc(idx: number) {
+    this._x.push(idx)
   }
 
   /* @internal */
@@ -53,7 +72,7 @@ export class Root extends Scope {
   /* @internal */
   _flush() {
     if (!this.#batch) return;
-    for (const item of this._computeds) {
+    for (const item of this._c) {
       if (!item._dirty && (item._sources & this.#batch) !== 0) {
         item._dirty = true;
         if (item._effect) {
@@ -76,7 +95,7 @@ export class DataSignal<T = any> {
     if (!ROOT) ROOT = new Root()
     this.#root = ROOT;
     this.#val = val as T;
-    this.#id = this.#root._id();
+    this.#id = this.#root._as();
   }
 
   get val(): T {
@@ -96,6 +115,7 @@ export class DataSignal<T = any> {
 
 export class Computation<T = unknown> extends Scope {
   #root: Root;
+  #id: number;
   #val: T;
   #fn: (() => T) | undefined;
   /* @internal */
@@ -104,6 +124,8 @@ export class Computation<T = unknown> extends Scope {
   _sources: number = 0;
   /* @internal */
   _dirty = true;
+  /* @internal destroyed */
+  _d = false;
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
     super();
@@ -111,7 +133,7 @@ export class Computation<T = unknown> extends Scope {
     this.#root = ROOT;
     this.#fn = compute;
     this.#val = val!;
-    this.#root._computeds.push(this as Computation<unknown>);
+    this.#id = this.#root._ac(this as Computation<unknown>);
     if (effect) {
       this._effect = effect;
       EFFECT_QUEUE.push(this as Computation<unknown>);
@@ -144,9 +166,12 @@ export class Computation<T = unknown> extends Scope {
 
   /* @internal */
   _dispose() {
+    if (this._d) return;
     super._dispose();
     this._sources = 0;
     this._dirty = false;
+    this._d = true;
+    this.#root._dc(this.#id);
   }
 }
 

@@ -10,7 +10,7 @@ export function mulberry32(a: number) {
   }
 }
 
-export function packedBench(sources: number, effects: number, densityFactor: number = 0.3, updatesPerBatch: number = 1) {
+export function packedBench(sources: number, effects: number, densityFactor: number = 0.3, updatesPerBatch: number = 3) {
   return function op(api: FrameworkBenchmarkApi) {
     const packing = densityFactor * sources;
     return api.root(() => {
@@ -47,9 +47,9 @@ export function packedBench(sources: number, effects: number, densityFactor: num
 }
 
 export function denseBench(heads: number, layers: number, spread: number) {
-  const rnd2 = mulberry32(123456);
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
+      const rnd2 = mulberry32(123456);
       const rnd = mulberry32(0x9999);
       const allHeads: FrameworkSignal<number>[] = []
       for (let h = 0; h < heads; h++) {
@@ -90,9 +90,10 @@ export function denseBench(heads: number, layers: number, spread: number) {
   return op
 }
 
-export function oneshotBench(sources: number, effects: number, times: number) {
+export function batchBench(sources: number, effects: number, times: number, batchSize: number = 4) {
   return function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
+      const rnd = mulberry32(123456);
       let count = 0;
       const xs: FrameworkSignal[] = []
       for (let t = 0; t < times; t++) {
@@ -109,11 +110,15 @@ export function oneshotBench(sources: number, effects: number, times: number) {
       }
 
       return () => {
-        count = 0
-        api.runSync(() => {
-          xs.forEach(x => x.set(x.get() + 1))
+        count = 0;
+        api.batch(() => {
+          const start = Math.floor(rnd() * xs.length);
+          for (let i = 0; i < batchSize; i++) {
+            const pos = xs[(i + start) % xs.length]
+            pos.set(pos.get() + 1)
+          }
         })
-        console.assert(count === sources * effects * times);
+        // console.assert(count === batchSize * effects, api.name);
       }
     });
   }

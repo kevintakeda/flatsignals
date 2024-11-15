@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { computed, effect, root, signal, tick } from "../src/index.js";
+import { computed, effect, root, signal, flushSync } from "../src/index.js";
 
 test("peek inside memos", () => {
   root(() => {
@@ -27,15 +27,15 @@ test("untrack inside effects", () => {
     const c = computed(() => a.val + b.val);
     const spy = vi.fn(() => [a.peek, b.peek, c.peek]);
     effect(spy);
-    tick();
+    flushSync();
     expect(spy).toHaveBeenCalledTimes(1);
 
     a.val = "x";
-    tick();
+    flushSync();
     expect(spy).toHaveBeenCalledTimes(1);
 
     b.val = "y";
-    tick();
+    flushSync();
     expect(spy).toHaveBeenCalledTimes(1);
   })
 });

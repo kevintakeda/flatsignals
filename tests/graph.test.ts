@@ -1,7 +1,7 @@
 // adapted from https://github.com/preactjs/signals/blob/main/packages/core/test/signal.test.tsx
 
 import { vi, it, expect } from "vitest";
-import { root, tick, signal, effect, computed } from "../src/index.js";
+import { root, flushSync, signal, effect, computed } from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
   root(() => {
@@ -240,7 +240,7 @@ it("should only subscribe to signals listened to", () => {
 
     let result = "";
     const unsub = effect(() => (result = c.val));
-    tick();
+    flushSync();
 
     expect(result).to.equal("a");
     expect(d.val).to.equal("a");

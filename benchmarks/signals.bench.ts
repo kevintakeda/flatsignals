@@ -1,28 +1,6 @@
-import { bench, describe } from 'vitest';
-import { FlatSignalsFramework, FrameworkComputed, FrameworkSignal, MaverickSignalsFramework, PreactSignalsFramework, ReactivelyFramework, type FrameworkBenchmarkApi } from './frameworks';
-import { denseBench, mulberry32, oneshotBench, packedBench } from './utils';
-
-function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
-  const x0 = op(FlatSignalsFramework);
-  bench(FlatSignalsFramework.name, () => {
-    x0()
-  });
-
-  const x1 = op(PreactSignalsFramework);
-  bench(PreactSignalsFramework.name, () => {
-    x1();
-  });
-
-  const x2 = op(ReactivelyFramework);
-  bench(ReactivelyFramework.name, () => {
-    x2();
-  });
-
-  const x3 = op(MaverickSignalsFramework);
-  bench(MaverickSignalsFramework.name, () => {
-    x3();
-  });
-}
+import { describe } from 'vitest';
+import { FrameworkComputed, FrameworkSignal, runAll, type FrameworkBenchmarkApi } from './frameworks';
+import { batchBench, denseBench, mulberry32, packedBench } from './utils';
 
 describe("wide propagation (32x)", () => {
   function op(api: FrameworkBenchmarkApi) {
@@ -48,7 +26,7 @@ describe("wide propagation (32x)", () => {
         countEff = 0;
         countComp = 0;
         api.runSync(() => head.set(2));
-        console.assert(countEff === width)
+        console.assert(countEff === width, api.name)
         console.assert(countComp === width)
         console.assert(last.get() === width + 1)
       }
@@ -126,37 +104,32 @@ describe("highly dynamic", () => {
   runAll(op);
 });
 
-describe("oneshot 1 to 1 (8x)", () => {
-  const op = oneshotBench(1, 10, 8)
+describe("batch 2 (4 sources)", () => {
+  const op = batchBench(1, 2, 4, 2)
   runAll(op);
 });
 
-describe("oneshot 1 to 1 (16x)", () => {
-  const op = oneshotBench(1, 1, 16)
+describe("batch 8 (16 sources)", () => {
+  const op = batchBench(1, 2, 16, 8)
   runAll(op);
 });
 
-describe("oneshot 1 to 2 (16x)", () => {
-  const op = oneshotBench(1, 3, 16)
+describe("batch 16 (32 sources)", () => {
+  const op = batchBench(1, 2, 32, 16)
   runAll(op);
 });
 
-describe("oneshot 1 to 3 (16x)", () => {
-  const op = oneshotBench(1, 3, 16)
-  runAll(op);
-});
-
-describe("packed (8x sources)", () => {
+describe("packed (8 sources)", () => {
   const op = packedBench(8, 1, 0.3)
   runAll(op);
 });
 
-describe("packed (24x sources)", () => {
+describe("packed (24 sources)", () => {
   const op = packedBench(24, 24, 0.3)
   runAll(op);
 });
 
-describe("packed (32x sources)", () => {
+describe("packed (32 sources)", () => {
   const op = packedBench(32, 32, 0.3)
   runAll(op);
 });

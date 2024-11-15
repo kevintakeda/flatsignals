@@ -2,30 +2,33 @@ let ROOT: Root | null = null,
   COMPUTED: Computation | null = null,
   EFFECT_QUEUE: Array<Computation> = [],
   QUEUED = false,
-  SCHEDULER: (() => void) | undefined;
+  BATCH: number | null = null,
+  BATCH_ROOT: Root | null = null;
 
-
-export class Disposable {
+export class Scope {
   /* @internal */
-  _running = false;
+  _active = false;
   /* @internal */
-  _disposals: (() => void)[] = [];
+  _disposals: ((() => void)[] | null) = null;
   /* @internal */
   _dispose() {
-    if (this._running) return;
-    this._running = true;
-    this._disposals.forEach(fn => fn())
-    this._running = false;
+    if (this._active) return;
+    this._active = true;
+    this._disposals?.forEach(fn => fn())
+    this._active = false;
+  }
+  /* @internal */
+  _onDispose(fn: (() => void)) {
+    if (!this._disposals) this._disposals = [];
+    this._disposals.push(fn);
   }
 }
 
-export class Root extends Disposable {
+export class Root extends Scope {
   /* @internal */
   _computeds: Array<Computation> = [];
   /* @internal */
   _i = 0;
-  /* @internal */
-  _spy = -1;
 
   /* @internal */
   _dispose() {
@@ -33,12 +36,24 @@ export class Root extends Disposable {
     for (const el of this._computeds) el._dispose();
     this._computeds = [];
     this._i = 0;
-    this._spy = -1;
   }
   /* @internal */
   _id() {
     if (this._i > 31) throw new Error("root max: 32 signals")
     return 1 << this._i++
+  }
+
+  /* @internal */
+  _batch(signature: number) {
+    for (const item of this._computeds) {
+      if (!item._dirty && (item._sources & signature) !== 0) {
+        item._dirty = true;
+        if (item._effect) {
+          EFFECT_QUEUE.push(item);
+          flushQueue();
+        }
+      }
+    }
   }
 }
 
@@ -56,32 +71,26 @@ export class DataSignal<T = any> {
   }
 
   get val(): T {
-    if (COMPUTED) {
-      COMPUTED._sources |= this.#id
-      this.#root._spy |= this.#id
-    }
+    if (COMPUTED) COMPUTED._sources |= this.#id
     return this.#val as T
   }
 
   set val(val: T) {
     if (this.equals(val, this.#val)) return;
     this.#val = val as T;
-    if ((this.#root._spy & this.#id) !== 0) {
-      for (const item of this.#root._computeds) {
-        if (!item._dirty && (item._sources & this.#id) !== 0) {
-          item._dirty = true;
-          if (item._effect) {
-            EFFECT_QUEUE.push(item);
-            SCHEDULER?.();
-          }
-        }
-      }
-      this.#root._spy &= ~this.#id;
+    if (BATCH === null) {
+      this.#root._batch(this.#id)
+    } else {
+      BATCH_ROOT = this.#root;
+      BATCH |= this.#id;
     }
+  }
+  get peek() {
+    return this.#val
   }
 }
 
-export class Computation<T = unknown> extends Disposable {
+export class Computation<T = unknown> extends Scope {
   #root: Root;
   #val: T;
   #fn: (() => T) | undefined;
@@ -103,9 +112,8 @@ export class Computation<T = unknown> extends Disposable {
       this._effect = effect;
       EFFECT_QUEUE.push(this as Computation<unknown>);
     }
-    this.#val = undefined as any;
     if (COMPUTED) {
-      COMPUTED._disposals.push(this._dispose.bind(this))
+      COMPUTED._onDispose(this._dispose.bind(this))
     }
   }
 
@@ -118,17 +126,17 @@ export class Computation<T = unknown> extends Disposable {
       this.#val = this.#fn!();
       this._dirty = false;
       COMPUTED = prevCurrent;
-      this.#root._spy |= this._sources
     }
-    if (prevCurrent) {
-      prevCurrent._sources |= this._sources;
-      this.#root._spy |= this._sources
-    }
+    if (prevCurrent) prevCurrent._sources |= this._sources;
     return this.#val!
   }
 
   get peek() {
     return this.#val
+  }
+
+  getRoot() {
+    return this.#root
   }
 
   /* @internal */
@@ -143,40 +151,46 @@ function defaultEquality(a: unknown, b: unknown) {
   return a === b
 }
 
-export function tick() {
+export function flushSync() {
   if (EFFECT_QUEUE.length) {
     for (const el of EFFECT_QUEUE) el.val
     EFFECT_QUEUE = []
   }
 }
 
-export function queueTick() {
+export function flushQueue() {
   if (!QUEUED) {
     QUEUED = true;
-    queueMicrotask(() => (tick(), QUEUED = false));
+    queueMicrotask(() => (flushSync(), QUEUED = false));
   }
 }
 
-export function getScope(): Disposable | null {
+export function getScope(): Scope | null {
   return COMPUTED || ROOT
 }
 
-export function onDispose(fn: (() => void)) {
-  getScope()?._disposals.push(fn)
-}
-
-export function root<T>(fn: (dispose: () => void) => T, root?: Root) {
-  const prevRoot = ROOT;
-  const prevScope = getScope();
-  ROOT = root ?? new Root();
-  prevScope?._disposals.push(ROOT._dispose.bind(ROOT));
-  const result = fn(ROOT._dispose.bind(ROOT));
+export function withScope(scope: Scope, fn: () => void) {
+  const prevComputed = COMPUTED, prevRoot = ROOT;
+  if (scope instanceof Computation) COMPUTED = scope as Computation;
+  ROOT = COMPUTED?.getRoot() ?? ROOT;
+  const result = fn();
+  COMPUTED = prevComputed;
   ROOT = prevRoot;
   return result
 }
 
-export function autoTick(fn = queueTick) {
-  SCHEDULER = fn;
+export function onDispose(fn: (() => void)) {
+  getScope()?._onDispose(fn)
+}
+
+export function root<T>(fn: (dispose: () => void) => T, existingRoot?: Root) {
+  const prevRoot = ROOT;
+  const prevScope = getScope();
+  ROOT = existingRoot ?? new Root();
+  prevScope?._onDispose(ROOT._dispose.bind(ROOT));
+  const result = fn(ROOT._dispose.bind(ROOT));
+  ROOT = prevRoot;
+  return result
 }
 
 export function signal<T = unknown>(val?: T): DataSignal<T> {
@@ -190,4 +204,12 @@ export function computed<T = unknown>(val: (() => T)): Computation<T> {
 export function effect<T = unknown>(fn: (() => T)) {
   const sig = new Computation(fn, undefined, true);
   return sig._dispose.bind(sig);
+}
+
+export function batch(fn: () => void) {
+  BATCH = 0;
+  fn();
+  BATCH_ROOT?._batch(BATCH);
+  BATCH_ROOT = null;
+  BATCH = null;
 }

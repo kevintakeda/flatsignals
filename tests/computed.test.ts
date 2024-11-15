@@ -1,5 +1,5 @@
 import { vi, expect, test } from "vitest";
-import { computed, root, signal, tick } from "../src/index.js";
+import { computed, root, signal } from "../src/index.js";
 
 test("is cached", () => {
   root(() => {

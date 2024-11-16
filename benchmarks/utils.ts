@@ -10,10 +10,11 @@ export function mulberry32(a: number) {
   }
 }
 
-export function packedBench(sources: number, effects: number, densityFactor: number = 0.3, updatesPerBatch: number = 1) {
+export function packedBench(sources: number, effects: number, densityFactor: number = 0.3) {
   return function op(api: FrameworkBenchmarkApi) {
-    const packing = densityFactor * sources;
+    const packing = Math.min(Math.ceil(densityFactor * sources), sources);
     return api.root(() => {
+      let countEff = 0;
       let head: (FrameworkSignal<number>)[] = [];
       for (let i = 0; i < sources; i++) {
         const x = api.signal(i);
@@ -21,24 +22,28 @@ export function packedBench(sources: number, effects: number, densityFactor: num
       }
 
       for (let j = 0; j < effects; j++) {
+        const using: FrameworkSignal[] = [];
+        for (let k = 0; k < packing; k++) {
+          using.push(head[(j + k) % head.length])
+        }
         api.effect(() => {
-          for (let k = 0; k < packing; k++) {
-            head[(j + k) % head.length].get();
+          for (let i = 0; i < using.length; i++) {
+            using[i].get();
           }
+          countEff++;
         });
       }
       api.runSync(() => void 0);
       const rnd = mulberry32(123456);
-      let i = 0, j = 0;
+      let j = 0;
+      const atleast = Math.ceil(effects * densityFactor)
       return () => {
-        i = 0;
+        countEff = 0;
         api.runSync(() => {
-          while (i < updatesPerBatch) {
-            const el = head[Math.floor(rnd() * head.length)];
-            el.set(j++);
-            i++;
-          }
+          const el = head[Math.floor(rnd() * head.length)];
+          el.update(el => el + 1);
         });
+        console.assert(countEff === atleast, api.name, countEff);
       }
     });
   }
@@ -47,8 +52,8 @@ export function packedBench(sources: number, effects: number, densityFactor: num
 export function denseBench(heads: number, layers: number, spread = 2, batchSize = 1) {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
+      const rnd1 = mulberry32(0x1111);
       const rnd2 = mulberry32(0x2222);
-      const rnd = mulberry32(0x1111);
       const allHeads: FrameworkSignal<number>[] = []
       for (let h = 0; h < heads; h++) {
         const head = api.signal(1);
@@ -73,12 +78,11 @@ export function denseBench(heads: number, layers: number, spread = 2, batchSize 
         }
       }
       api.runSync(() => void 0);
-      let i = 0;
       return () => {
         api.runSync(() => {
           for (let j = 0; j < batchSize; j++) {
-            const idx = Math.floor(rnd() * allHeads.length)
-            allHeads[idx].set(i++);
+            const idx = Math.floor(rnd1() * allHeads.length)
+            allHeads[idx].update(el => el + 1);
           }
         })
       }
@@ -101,21 +105,25 @@ export function batchBench(sources: number, width: number, batchSize: number = 4
             return x.get() + i;
           });
           api.effect(() => {
+            count++;
             c.get();
           });
         }
       }
 
+      const uniqueSets = new Set<FrameworkSignal<any>>();
       return () => {
         count = 0;
+        uniqueSets.clear();
         api.runSync(() => {
           const start = Math.floor(rnd() * xs.length);
           for (let i = 0; i < batchSize; i++) {
             const pos = xs[(i + start) % xs.length]
-            pos.set(pos.get() + 1)
+            uniqueSets.add(pos);
+            pos.update(el => el + 1);
           }
         })
-        // console.assert(count === batchSize * effects, api.name);
+        console.assert(count === uniqueSets.size * width, count, api.name);
       }
     });
   }

@@ -6,16 +6,22 @@ let ROOT_QUEUE: Array<Root> = [],
 
 export class Scope {
   /* @internal */
-  _active = false;
+  _disposing = false;
   /* @internal */
   _disposals: ((() => void)[] | null) = null;
+
+  constructor() {
+    getScope()?._onDispose(this._dispose.bind(this));
+  }
+
   /* @internal */
   _dispose() {
-    if (this._active) return;
-    this._active = true;
+    if (this._disposing) return;
+    this._disposing = true;
     this._disposals?.forEach(fn => fn())
-    this._active = false;
+    this._disposing = false;
   }
+
   /* @internal */
   _onDispose(fn: (() => void)) {
     if (!this._disposals) this._disposals = [];
@@ -30,21 +36,21 @@ export class Root extends Scope {
   _x: Array<number> = [];
   /* @internal */
   _i = 0;
-  /* @internal */
-  #batch: number = 0;
+  #batch1: number = 0;
+  #batch2: number = 0;
 
   /* @internal */
   _dispose() {
     super._dispose();
-    for (const el of this._c) el._dispose();
     this._c = [];
     this._x = [];
     this._i = 0;
   }
+
   /* @internal Add source */
   _as() {
-    if (this._i > 31) throw new Error("root max: 32 signals")
-    return 1 << this._i++
+    if (this._i >= 64) throw new Error("root max: 64 signals")
+    return this._i++
   }
 
   /* @internal Add computed */
@@ -64,16 +70,17 @@ export class Root extends Scope {
   }
 
   /* @internal */
-  _queue(mask: number) {
-    if (!this.#batch) ROOT_QUEUE.push(this);
-    this.#batch |= mask;
+  _queue(mask1: number, mask2: number) {
+    if (!this.#batch1 && !this.#batch2) ROOT_QUEUE.push(this);
+    this.#batch1 |= mask1;
+    this.#batch2 |= mask2;
   }
 
   /* @internal */
   _flush() {
-    if (!this.#batch) return;
+    if (!this.#batch1 && !this.#batch2) return;
     for (const item of this._c) {
-      if (!item._dirty && (item._sources & this.#batch) !== 0) {
+      if (!item._dirty && ((item._sources1 & this.#batch1) !== 0 || (item._sources2 & this.#batch2) !== 0)) {
         item._dirty = true;
         if (item._effect) {
           EFFECT_QUEUE.push(item);
@@ -81,35 +88,51 @@ export class Root extends Scope {
         }
       }
     }
-    this.#batch = 0;
+    this.#batch1 = 0;
+    this.#batch2 = 0;
   }
 }
 
 export class DataSignal<T = any> {
   #root: Root;
   #val: T;
-  #id;
+  #id1 = 0;
+  #id2 = 0;
   equals = defaultEquality;
 
   constructor(val?: T) {
     if (!ROOT) ROOT = new Root()
     this.#root = ROOT;
     this.#val = val as T;
-    this.#id = this.#root._as();
+    const id = this.#root._as();
+    if (id < 32) {
+      this.#id1 |= (1 << id);
+    } else {
+      this.#id2 |= (1 << (id - 32));
+    }
   }
 
   get val(): T {
-    if (COMPUTED) COMPUTED._sources |= this.#id
+    if (COMPUTED) {
+      COMPUTED._sources2 |= this.#id2
+      COMPUTED._sources1 |= this.#id1
+    }
     return this.#val as T
   }
 
   set val(val: T) {
     if (this.equals(val, this.#val)) return;
     this.#val = val as T;
-    this.#root._queue(this.#id);
+    this.#root._queue(this.#id1, this.#id2);
   }
+
   get peek() {
     return this.#val
+  }
+
+  update(fn: (prev: T) => T) {
+    // peek.
+    this.val = fn(this.#val)
   }
 }
 
@@ -121,15 +144,17 @@ export class Computation<T = unknown> extends Scope {
   /* @internal */
   _effect: boolean = false;
   /* @internal */
-  _sources: number = 0;
+  _sources1: number = 0;
+  /* @internal */
+  _sources2: number = 0;
   /* @internal */
   _dirty = true;
   /* @internal destroyed */
   _d = false;
 
   constructor(compute?: () => T, val?: T, effect?: boolean) {
-    super();
     if (!ROOT) ROOT = new Root();
+    super();
     this.#root = ROOT;
     this.#fn = compute;
     this.#val = val!;
@@ -138,7 +163,6 @@ export class Computation<T = unknown> extends Scope {
       this._effect = effect;
       EFFECT_QUEUE.push(this as Computation<unknown>);
     }
-    if (COMPUTED) COMPUTED._onDispose(this._dispose.bind(this));
   }
 
   get val(): T {
@@ -147,12 +171,16 @@ export class Computation<T = unknown> extends Scope {
     if (this._dirty) {
       super._dispose();
       COMPUTED = this as Computation<unknown>;
-      this._sources = 0;
+      this._sources1 = 0;
+      this._sources2 = 0;
       this.#val = this.#fn!();
       this._dirty = false;
       COMPUTED = prevCurrent;
     }
-    if (prevCurrent) prevCurrent._sources |= this._sources;
+    if (prevCurrent) {
+      prevCurrent._sources1 |= this._sources1;
+      prevCurrent._sources2 |= this._sources2;
+    }
     return this.#val!
   }
 
@@ -168,7 +196,8 @@ export class Computation<T = unknown> extends Scope {
   _dispose() {
     if (this._d) return;
     super._dispose();
-    this._sources = 0;
+    this._sources1 = 0;
+    this._sources2 = 0;
     this._dirty = false;
     this._d = true;
     this.#root._dc(this.#id);
@@ -225,11 +254,13 @@ export function root<T>(fn: (dispose: () => void) => T, existingRoot?: Root) {
   return result
 }
 
-export function signal<T = unknown>(val?: T): DataSignal<T> {
-  return new DataSignal(val);
+export function signal<T>(value: T): DataSignal<T>;
+export function signal<T = undefined>(): DataSignal<T | undefined>;
+export function signal<T>(value?: T): DataSignal<T> {
+  return new DataSignal(value);
 }
 
-export function computed<T = unknown>(val: (() => T)): Computation<T> {
+export function computed<T>(val: (() => T)): Computation<T> {
   return new Computation(val);
 }
 

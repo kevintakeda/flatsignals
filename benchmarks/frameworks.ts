@@ -18,6 +18,7 @@ import { bench } from "vitest";
 export interface FrameworkSignal<T = any> {
   get(): T;
   set(v: T): void;
+  update(v: (p: T) => T): void;
 }
 export interface FrameworkComputed<T = any> {
   get(): T;
@@ -60,6 +61,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
     return {
       set: (v) => S.val = v,
       get: () => S.val,
+      update: (u) => S.update(u)
     };
   },
   computed: (fn) => {
@@ -83,6 +85,7 @@ export const ReactivelyFramework: FrameworkBenchmarkApi = {
     return {
       set: (v) => S.set(v),
       get: () => S.get(),
+      update: (u) => S.set(u(S.get()))
     };
   },
   computed: (fn) => {
@@ -106,6 +109,7 @@ export const PreactSignalsFramework: FrameworkBenchmarkApi = {
     return {
       set: (v) => (S.value = v),
       get: () => S.value,
+      update: (fn) => S.value = fn(S.peek()),
     };
   },
   computed: (fn) => {
@@ -126,6 +130,7 @@ export const MaverickSignalsFramework: FrameworkBenchmarkApi = {
     return {
       set: (v) => S.set(v),
       get: () => S(),
+      update: (fn) => S.set(fn),
     };
   },
   computed: (fn) => {

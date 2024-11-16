@@ -70,35 +70,35 @@ describe("deep propagation (32x)", () => {
 describe("dynamic", () => {
   function op(api: FrameworkBenchmarkApi) {
     return api.root(() => {
-      const trigger = api.signal(true);
-      const signals: FrameworkSignal<number>[] = []
-      for (let i = 0; i < 16; i++) {
-        signals.push(api.signal(i))
+      const head = api.signal(0);
+      for (let j = 0; j < 10; j++) {
+        const trigger = api.computed(() => (head.get() + j) % 2 === 0);
+        const signals: FrameworkSignal<number>[] = []
+        for (let i = 0; i < 4; i++) {
+          signals.push(api.signal(i))
+        }
+        const between1 = api.computed(() => {
+          let sum = 0;
+          for (let i = 0; i < signals.length; i++) {
+            sum += signals[i].get();
+          }
+          return sum
+        });
+        const between2 = api.computed(() => {
+          let sum = 0;
+          for (let i = signals.length - 1; i > 0; i--) {
+            sum -= signals[i].get();
+          }
+          return sum
+        });
+        const end = api.computed(() => {
+          return trigger.get() ? between1.get() : between2.get();
+        })
+        api.effect(() => end.get());
       }
-      const between1 = api.computed(() => {
-        let sum = 0;
-        for (let i = 0; i < signals.length; i++) {
-          sum += signals[i].get();
-        }
-        return sum
-      });
-      api.effect(() => between1.get());
-      const between2 = api.computed(() => {
-        let sum = 0;
-        for (let i = signals.length - 1; i > 0; i--) {
-          sum -= signals[i].get();
-        }
-        return sum
-      });
-      api.effect(() => between2.get());
-      const end = api.computed(() => {
-        return trigger.get() ? between1.get() : between2.get();
-      })
-      api.effect(() => end.get());
-      let i = 0;
       return () => {
         api.runSync(() => {
-          trigger.set(i++ % 2 === 0);
+          head.update(el => el + 1);
         })
       }
     });
@@ -106,52 +106,62 @@ describe("dynamic", () => {
   runAll(op);
 });
 
-describe("batch 2 (4 sources)", () => {
-  const op = batchBench(4, 16, 2)
+describe("batch 25%", () => {
+  const op = batchBench(16, 2, 4)
   runAll(op);
 });
 
-describe("batch 8 (16 sources)", () => {
-  const op = batchBench(16, 16, 8)
+describe("batch 50%", () => {
+  const op = batchBench(16, 2, 8)
   runAll(op);
 });
 
-describe("batch 16 (32 sources)", () => {
-  const op = batchBench(16, 16, 16)
+describe("batch 75%", () => {
+  const op = batchBench(16, 2, 12)
   runAll(op);
 });
 
-describe("packed (30%)", () => {
+describe("batch 100%", () => {
+  const op = batchBench(16, 2, 16)
+  runAll(op);
+});
+
+describe("packed 30%", () => {
   const op = packedBench(16, 16, 0.3)
   runAll(op);
 });
 
-describe("packed (60%)", () => {
+describe("packed 60%", () => {
   const op = packedBench(16, 16, 0.6)
   runAll(op);
 });
 
-describe("packed (80%)", () => {
+describe("packed 80%", () => {
   const op = packedBench(16, 16, 0.8)
   runAll(op);
 });
 
-describe("dense (2x layers)", () => {
-  const op = denseBench(4, 2, 2)
+describe("dense batch ~1/3 (2x layers)", () => {
+  const op = denseBench(16, 2, 2, 16 / 3)
   runAll(op);
 });
 
-describe("dense (4x layers)", () => {
-  const op = denseBench(4, 4, 2)
+describe("dense batch ~1/3 (4x layers)", () => {
+  const op = denseBench(16, 4, 2, 16 / 3)
   runAll(op);
 });
 
-describe("dense (8x layers)", () => {
-  const op = denseBench(4, 8, 2)
+describe("dense batch ~1/3 (6x layers)", () => {
+  const op = denseBench(16, 6, 2, 16 / 3)
   runAll(op);
 });
 
-describe("dense (12x layers)", () => {
-  const op = denseBench(4, 12, 2)
+describe("dense batch ~1/3 (8x layers)", () => {
+  const op = denseBench(16, 8, 2, 16 / 3)
+  runAll(op);
+});
+
+describe("dense batch ~1/3 (10x layers)", () => {
+  const op = denseBench(16, 10, 2, 16 / 3)
   runAll(op);
 });

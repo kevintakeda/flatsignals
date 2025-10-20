@@ -1,5 +1,13 @@
 import { Reactive, stabilize } from "@reactively/core";
-import { signal, effect, root, computed, flushSync } from "../src/index.js"
+import {
+  computed as alienComputed,
+  effect as alienEffect,
+  endBatch,
+  signal as alienSignal,
+  startBatch,
+  effectScope,
+} from "alien-signals/esm";
+import { signal, effect, root, computed, batch } from "../src/index.js"
 import {
   signal as psignal,
   effect as peffect,
@@ -52,6 +60,11 @@ export function runAll(op: (api: FrameworkBenchmarkApi) => (() => void)) {
   bench(MaverickSignalsFramework.name, () => {
     x3();
   });
+
+  const x4 = op(AlienSignalsFramework);
+  bench(AlienSignalsFramework.name, () => {
+    x4();
+  });
 }
 
 export const FlatSignalsFramework: FrameworkBenchmarkApi = {
@@ -61,7 +74,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
     return {
       set: (v) => S.val = v,
       get: () => S.val,
-      update: (u) => S.update(u)
+      update: (u) => S.val = u(S.val)
     };
   },
   computed: (fn) => {
@@ -72,8 +85,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
   },
   effect: (fn) => effect(fn),
   runSync: (fn) => {
-    fn();
-    flushSync();
+    batch(() => fn());
   },
   root: (fn) => root(fn),
 };
@@ -145,4 +157,37 @@ export const MaverickSignalsFramework: FrameworkBenchmarkApi = {
     mtick();
   },
   root: (fn) => mroot(fn),
+};
+
+
+let scope: (() => void) | null = null;
+export const AlienSignalsFramework: FrameworkBenchmarkApi = {
+  name: "alien-signals",
+  signal: (val) => {
+    const S = alienSignal(val);
+    return {
+      get: () => S(),
+      set: (v) => S(v),
+      update: (fn) => S(fn(S())),
+    };
+  },
+  computed: (fn) => {
+    const S = alienComputed(fn);
+    return {
+      get: () => S(),
+    };
+  },
+  effect: (fn) => alienEffect(fn),
+  runSync: (fn) => {
+    startBatch();
+    fn();
+    endBatch();
+  },
+  root: <T>(fn: () => T) => {
+    let out!: T;
+    scope = effectScope(() => {
+      out = fn();
+    });
+    return out;
+  },
 };

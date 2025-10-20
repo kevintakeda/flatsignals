@@ -240,7 +240,7 @@ it("should only subscribe to signals listened to", () => {
 
     let result = "";
     const unsub = effect(() => (result = c.val));
-    flushSync();
+    
 
     expect(result).to.equal("a");
     expect(d.val).to.equal("a");

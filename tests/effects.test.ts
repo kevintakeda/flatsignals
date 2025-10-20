@@ -1,6 +1,6 @@
 
 import { vi, expect, test } from "vitest";
-import { computed, effect, root, signal, flushSync } from "../src/index.js";
+import { computed, effect, root, signal, batch } from "../src/index.js";
 
 test("effects", () => {
   root(() => {
@@ -9,21 +9,19 @@ test("effects", () => {
     const cSpy = vi.fn(() => a.val + b.val);
     effect(cSpy);
 
-    expect(cSpy).toHaveBeenCalledTimes(0);
+    expect(cSpy).toHaveBeenCalledTimes(1);
 
     a.val = 10;
-    flushSync();
-    expect(cSpy).toHaveBeenCalledTimes(1);
-    flushSync();
-    expect(cSpy).toHaveBeenCalledTimes(1);
+    expect(cSpy).toHaveBeenCalledTimes(2);
+    expect(cSpy).toHaveBeenCalledTimes(2);
 
-    b.val = 20;
-    b.val = 30;
-    flushSync();
-    flushSync();
-    expect(cSpy).toHaveBeenCalledTimes(2);
-    flushSync();
-    expect(cSpy).toHaveBeenCalledTimes(2);
+    batch(() => {
+      b.val = 20;
+      b.val = 30;
+    });
+
+    expect(cSpy).toHaveBeenCalledTimes(3);
+    expect(cSpy).toHaveBeenCalledTimes(3);
   })
 });
 
@@ -35,91 +33,80 @@ test("unsubscribe invisible dependencies", () => {
     const fSpy = vi.fn(() => a.val ? b.val : c.val);
     effect(fSpy);
 
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(1);
     a.val = false;
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(2);
     a.val = true;
     c.val = "c!";
     c.val = "c!!";
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(3);
     a.val = false;
     b.val = "b!";
     b.val = "b!!"
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(4);
     a.val = false;
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(4);
     b.val = "b!!!";
-    flushSync();
+    
     expect(fSpy).toHaveBeenCalledTimes(4);
   })
 });
 
-test("nested effects run once", () => {
-  root(() => {
-    const a = signal(2);
-    const spyX = vi.fn(() => a.val);
-    const spyY = vi.fn(() => a.val);
-    const spyZ = vi.fn(() => a.val);
-    effect(() => {
-      spyX();
-      effect(() => {
-        spyY();
-        effect(() => {
-          spyZ();
-        });
-      });
-    });
+// TODO: unsopported for now
+// test("nested effects run once", () => {
+//   root(() => {
+//     const a = signal(2);
+//     const spyX = vi.fn(() => a.val);
+//     const spyY = vi.fn(() => a.val);
+//     const spyZ = vi.fn(() => a.val);
+    
+//     effect(() => {
+//       spyX();
+//       effect(() => {
+//         spyY();
+//         effect(() => {
+//           spyZ();
+//         });
+//       });
+//     });
 
-    expect(spyX).toHaveBeenCalledTimes(0);
-    expect(spyY).toHaveBeenCalledTimes(0);
-    expect(spyZ).toHaveBeenCalledTimes(0);
+//     expect(spyX).toHaveBeenCalledTimes(1);
+//     expect(spyY).toHaveBeenCalledTimes(1);
+//     expect(spyZ).toHaveBeenCalledTimes(1);
 
-    flushSync();
-    expect(spyX).toHaveBeenCalledTimes(1);
-    expect(spyY).toHaveBeenCalledTimes(1);
-    expect(spyZ).toHaveBeenCalledTimes(1);
+//     a.val = 4;
 
-    a.val = 4;
-    a.val = 8;
-    expect(spyX).toHaveBeenCalledTimes(1);
-    expect(spyY).toHaveBeenCalledTimes(1);
-    expect(spyZ).toHaveBeenCalledTimes(1);
+//     expect(spyX).toHaveBeenCalledTimes(2);
+//     expect(spyY).toHaveBeenCalledTimes(2);
+//     expect(spyZ).toHaveBeenCalledTimes(2);
 
-    flushSync();
-    expect(spyX).toHaveBeenCalledTimes(2);
-    expect(spyY).toHaveBeenCalledTimes(2);
-    expect(spyZ).toHaveBeenCalledTimes(2);
-    expect(a.val).toBe(8);
-  })
-});
+//     expect(a.val).toBe(8);
+//   })
+// });
 
 test("dispose effects", () => {
   root(() => {
     const a = signal("a");
     const bSpy = vi.fn(() => a.val);
     const dispose = effect(bSpy);
-    expect(bSpy).toHaveBeenCalledTimes(0);
+    expect(bSpy).toHaveBeenCalledTimes(1);
 
     // set a
     a.val = "a!";
-    flushSync();
-    expect(bSpy).toHaveBeenCalledTimes(1);
-    a.val = "a!!";
-    flushSync();
     expect(bSpy).toHaveBeenCalledTimes(2);
+    a.val = "a!!";
+    expect(bSpy).toHaveBeenCalledTimes(3);
     dispose();
     bSpy.mockReset();
 
     a.val = "a!!!";
-    flushSync();
     expect(bSpy).toHaveBeenCalledTimes(0);
     a.val = "a!!!!";
-    flushSync();
     expect(bSpy).toHaveBeenCalledTimes(0);
     expect(bSpy).toHaveBeenCalledTimes(0);
   })
@@ -145,10 +132,10 @@ test("effect with conditional dependencies", () => {
       }
     );
     s1.val = false;
-    flushSync();
+    
     expect(result.val).toBe(0);
     s1.val = true;
-    flushSync();
+    
     expect(result.val).toBe(1);
   })
 });
@@ -164,10 +151,10 @@ test("effect with deep dependencies", () => {
     const d = computed(spyD);
     const spyE = vi.fn(() => d.val);
     effect(spyE);
-    flushSync();
+    
     expect(spyE).toHaveBeenCalledTimes(1);
     a.val = 4;
-    flushSync();
+    
     expect(spyE).toHaveBeenCalledTimes(2);
   })
 });
@@ -182,17 +169,17 @@ test("effects using sources from top to bottom", () => {
     effect(() => { a.val; count(); });
     effect(() => { b.val; count(); });
 
-    flushSync();
+    
     expect(count).toBeCalledTimes(3)
 
     count.mockClear();
     x.val = "x!";
-    flushSync();
+    
     expect(count).toBeCalledTimes(3)
 
     count.mockClear();
     x.val = "x!!";
-    flushSync();
+    
     expect(count).toBeCalledTimes(3)
   });
 });

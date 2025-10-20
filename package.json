@@ -1,7 +1,7 @@
 {
   "name": "flatsignals",
-  "version": "0.0.1",
-  "description": "",
+  "version": "0.1.0",
+  "description": "FlatSignals is an extremely fast reactivity library (~0.7kb)",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,16 +14,26 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "bench": "vitest bench",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "size": "size-limit"
   },
   "license": "MIT",
   "devDependencies": {
     "@maverick-js/signals": "^6.0.0",
-    "@preact/signals-core": "^1.8.0",
+    "@preact/signals-core": "^1.12.1",
     "@reactively/core": "^0.0.8",
-    "@types/node": "^22.9.0",
-    "tsup": "^8.3.5",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
-  }
+    "@size-limit/preset-small-lib": "^11.2.0",
+    "@types/node": "^22.18.11",
+    "alien-signals": "^3.0.1",
+    "size-limit": "^11.2.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "size-limit": [
+    {
+      "path": "dist/index.js",
+      "limit": "1 kB"
+    }
+  ]
 }

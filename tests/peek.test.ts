@@ -27,15 +27,15 @@ test("untrack inside effects", () => {
     const c = computed(() => a.val + b.val);
     const spy = vi.fn(() => [a.peek, b.peek, c.peek]);
     effect(spy);
-    flushSync();
+    
     expect(spy).toHaveBeenCalledTimes(1);
 
     a.val = "x";
-    flushSync();
+    
     expect(spy).toHaveBeenCalledTimes(1);
 
     b.val = "y";
-    flushSync();
+    
     expect(spy).toHaveBeenCalledTimes(1);
   })
 });

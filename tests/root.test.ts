@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { Computation, computed, DataSignal, effect, onDispose, root, signal, flushSync } from "../src/index.js";
+import { Computation, computed, DataSignal, effect, onDispose, root, signal } from "../src/index.js";
 
 test("untracked", () => {
   const spy = vi.fn();
@@ -39,15 +39,13 @@ test("should dispose of inner computations", () => {
 
   // expect($y!.val).toBe(null);
   expect(_memo).toHaveBeenCalledTimes(1);
-  expect(_effect).toHaveBeenCalledTimes(0);
+  expect(_effect).toHaveBeenCalledTimes(1);
 
-  flushSync();
   $x!.val = 50;
-  flushSync();
 
   // expect($y!.val).toBe(null);
   expect(_memo).toHaveBeenCalledTimes(1);
-  expect(_effect).toHaveBeenCalledTimes(0);
+  expect(_effect).toHaveBeenCalledTimes(1);
 });
 
 test("scoped", () => {
@@ -78,30 +76,30 @@ test("scoped", () => {
       }
     })
 
-    flushSync();
+    
     expect(spyEffectCalled).toBeCalledTimes(1);
     expect(spyACalled).toBeCalledTimes(1);
     expect(spyBCalled).toBeCalledTimes(0);
     expect(inner).toBeCalledTimes(0);
 
     a.val = "b";
-    flushSync();
+    
     expect(spyEffectCalled).toBeCalledTimes(2);
     expect(spyBCalled).toBeCalledTimes(1);
     expect(spyACalled).toBeCalledTimes(1);
     expect(inner).toBeCalledTimes(1);
 
     updateInner();
-    flushSync();
+    
     expect(inner).toBeCalledTimes(2);
 
     a.val = "a";
-    flushSync();
+    
     expect(spyEffectCalled).toBeCalledTimes(3);
     expect(inner).toBeCalledTimes(2);
 
     updateInner();
-    flushSync();
+    
     expect(spyEffectCalled).toBeCalledTimes(3);
     expect(inner).toBeCalledTimes(2);
   })

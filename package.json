@@ -1,39 +1,64 @@
 {
-  "name": "flatsignals",
-  "version": "0.1.0",
-  "description": "FlatSignals is an extremely fast reactivity library (~0.7kb)",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "type": "module",
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "test": "vitest run",
-    "bench": "vitest bench",
-    "test:watch": "vitest",
-    "size": "size-limit"
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@maverick-js/signals": "^6.0.0",
-    "@preact/signals-core": "^1.12.1",
-    "@reactively/core": "^0.0.8",
-    "@size-limit/preset-small-lib": "^11.2.0",
-    "@types/node": "^22.18.11",
-    "alien-signals": "^3.0.1",
-    "size-limit": "^11.2.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
-    "vitest": "^2.1.9"
-  },
-  "size-limit": [
-    {
-      "path": "dist/index.js",
-      "limit": "1 kB"
-    }
-  ]
+	"name": "flatsignals",
+	"version": "0.2.0",
+	"description": "FlatSignals is an extremely fast reactivity library (~0.7kb)",
+	"main": "dist/index.cjs",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./react": {
+			"import": "./dist/react.js",
+			"types": "./dist/react.d.ts"
+		}
+	},
+	"type": "module",
+	"scripts": {
+		"build": "tsdown",
+		"dev": "tsdown --watch",
+		"test": "vitest run",
+		"bench": "vitest bench",
+		"test:watch": "vitest",
+		"size": "size-limit"
+	},
+	"license": "MIT",
+	"devDependencies": {
+		"@angular/core": "^20.3.7",
+		"@biomejs/biome": "2.2.6",
+		"@maverick-js/signals": "^6.0.0",
+		"@preact/signals-core": "^1.12.1",
+		"@reactively/core": "^0.0.8",
+		"@size-limit/preset-small-lib": "^11.2.0",
+		"@solidjs/signals": "^0.7.5",
+		"@types/node": "^22.18.12",
+		"@types/react": "^19.2.2",
+		"@vue/reactivity": "^3.5.22",
+		"alien-signals": "^3.0.3",
+		"react": "^19.2.0",
+		"size-limit": "^11.2.0",
+		"solid-js": "^1.9.9",
+		"tsdown": "^0.15.9",
+		"typescript": "^5.9.3",
+		"vitest": "^2.1.9"
+	},
+	"peerDependencies": {
+		"react": "*"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		}
+	},
+	"size-limit": [
+		{
+			"path": "dist/index.js",
+			"limit": "1 kB"
+		}
+	]
 }

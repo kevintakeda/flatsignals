@@ -1,81 +1,104 @@
 # FlatSignals
 
-FlatSignals is an extremely fast reactivity library (~0.7kb).
+**FlatSignals** is an ultra-fast reactivity library (~0.5 KB) optimized for **high-frequency, few-to-many updates**.
 
-- Lightning-fast batch updates.
-- No graph traversals.
-- Dynamic dependencies managed in O(1) time.
-- Automatic disposals.
-- Computeds are lazy by default.
+## 🚀 Why it’s fast:
+
+- No graph traversals
+- O(1) dynamic dependency management
+- Lazy computations by default
 
 ## Benchmarks
 
-You can execute the [benchmarks](https://github.com/kevintakeda/flatsignals/tree/main/benchmarks) by running `pnpm bench`.
+> **Note:** Benchmarks were run in a controlled environment. Results may vary based on hardware and JavaScript engine. You can reproduce these benchmarks by cloning the repo and running `pnpm bench`.
 
-```console
-flatsignals - benchmarks/signals.bench.ts > one to many sparse (32x)
-  1.60x faster than @preact/signals
-  1.70x faster than @reactively/core
-  1.95x faster than alien-signals
-  2.27x faster than @maverick-js/signals
+### 1-to-64 fanout
 
-flatsignals - benchmarks/signals.bench.ts > wide propagation (32x)
-  1.72x faster than @preact/signals
-  1.74x faster than alien-signals
-  2.22x faster than @reactively/core
-  2.94x faster than @maverick-js/signals
+| Library              | Operations/sec ⚡ | vs flatsignals   |
+| -------------------- | ----------------- | ---------------- |
+| **flatsignals** 🏆   | **449,848**       | **baseline**     |
+| alien-signals        | 261,082           | **1.72x slower** |
+| @preact/signals      | 230,899           | **1.95x slower** |
+| @reactively/core     | 182,403           | **2.47x slower** |
+| @vue/reactivity      | 152,709           | **2.95x slower** |
+| @maverick-js/signals | 137,712           | **3.27x slower** |
+| Angular Signals      | 98,597            | **4.56x slower** |
+| @solidjs/signals     | 78,849            | **5.71x slower** |
 
-flatsignals - benchmarks/signals.bench.ts > deep propagation (32x)
-  1.02x faster than alien-signals
-  1.29x faster than @preact/signals
-  1.55x faster than @reactively/core
-  1.97x faster than @maverick-js/signals
+### High-frequency updates
 
-flatsignals - benchmarks/signals.bench.ts > dynamic
-  2.82x faster than @preact/signals
-  2.98x faster than @reactively/core
-  3.54x faster than @maverick-js/signals
-  4.56x faster than alien-signals
+| Library              | Operations/sec ⚡ | vs flatsignals   |
+| -------------------- | ----------------- | ---------------- |
+| **flatsignals** 🏆   | **976,139**       | **baseline**     |
+| alien-signals        | 502,513           | **1.94x slower** |
+| @preact/signals      | 492,543           | **1.98x slower** |
+| @reactively/core     | 438,882           | **2.22x slower** |
+| @maverick-js/signals | 343,368           | **2.84x slower** |
+| Angular Signals      | 241,189           | **4.05x slower** |
+| @vue/reactivity      | 221,537           | **4.41x slower** |
+| @solidjs/signals     | 202,492           | **4.82x slower** |
 
-flatsignals - benchmarks/signals.bench.ts > batch 25%
-  1.26x faster than @preact/signals
-  1.56x faster than alien-signals
-  1.66x faster than @reactively/core
-  1.97x faster than @maverick-js/signals
+### Diamond
 
-flatsignals - benchmarks/signals.bench.ts > batch 50%
-  1.48x faster than @preact/signals
-  1.62x faster than alien-signals
-  1.72x faster than @reactively/core
-  2.09x faster than @maverick-js/signals
+| Library              | Operations/sec ⚡ | vs flatsignals   |
+| -------------------- | ----------------- | ---------------- |
+| **flatsignals** 🏆   | **4,556,987**     | **baseline**     |
+| alien-signals        | 3,028,320         | **1.50x slower** |
+| @preact/signals      | 2,531,788         | **1.80x slower** |
+| @reactively/core     | 1,688,053         | **2.70x slower** |
+| Angular Signals      | 1,614,432         | **2.82x slower** |
+| @vue/reactivity      | 1,563,865         | **2.91x slower** |
+| @maverick-js/signals | 1,407,975         | **3.24x slower** |
+| @solidjs/signals     | 870,080           | **5.24x slower** |
 
-flatsignals - benchmarks/signals.bench.ts > packed 30%
-  1.49x faster than @reactively/core
-  1.77x faster than alien-signals
-  1.77x faster than @preact/signals
-  1.99x faster than @maverick-js/signals
+## Installation
 
-flatsignals - benchmarks/signals.bench.ts > dense batch ~1/3 (2x layers)
-  1.72x faster than @preact/signals
-  2.17x faster than @reactively/core
-  2.25x faster than alien-signals
-  2.86x faster than @maverick-js/signals
+```bash
+# npm
+npm install flatsignals
 
-flatsignals - benchmarks/signals.bench.ts > dense batch ~1/3 (4x layers)
-  1.98x faster than @preact/signals
-  2.11x faster than @reactively/core
-  2.75x faster than alien-signals
-  3.05x faster than @maverick-js/signals
+# pnpm
+pnpm add flatsignals
 
-alien-signals - benchmarks/signals.bench.ts > one to one to one (32x)
-  1.00x faster than @preact/signals
-  1.05x faster than flatsignals
-  1.16x faster than @maverick-js/signals
-  1.94x faster than @reactively/core
+# yarn
+yarn add flatsignals
 ```
 
-## Tradeoffs
+## Usage
 
-1. Supports only 32 signals per root.
-2. Set operations have 𝑂(𝑁) complexity, where 𝑁 is the number of computations. However, multiple updates can be batched into a single operation.
-3. When data sources change, all dependent nodes are marked dirty, even if intermediate values stay the same.
+```ts
+import { signal, computed, effect } from "flatsignals";
+
+const counter = signal(0);
+const double = computed(() => counter.val * 2);
+const log = effect(() => console.log(double.val));
+```
+
+## With React
+
+```tsx
+import { useFlatSignal } from "flatsignals/react";
+import { counter, double } from "./signals";
+
+function MyCounter() {
+  const [counter, setCounter] = useFlatSignal(0);
+  return (
+    <button onClick={() => setCounter(counter + 1)}>Count: {counter}</button>
+  );
+}
+
+function ReadDouble() {
+  const double = useFlatReader(double);
+  return <div>{double}</div>;
+}
+```
+
+## Use Case
+
+> **Best suited for:** Scenarios with a small number of reactive signals driving many dependent computations.
+
+**Limitations:**
+
+- **Signal limit**: Maximum of 32 signals per root. Beyond this limit, effects may trigger even when their tracked signals haven't changed.
+- **Set complexity**: O(N) time proportional to dependent computations (amortized through batching)
+- **Eager propagation**: All downstream nodes marked dirty immediately, even when intermediate values unchanged

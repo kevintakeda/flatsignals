@@ -40,6 +40,34 @@ export function useFlatReader<T>(
   );
 }
 
+export function useFlatSelector<T, R>(
+  signal: FlatSignal<T> | FlatCompute<T>,
+  selector: (value: T) => R,
+  isEqual: (a: R, b: R) => boolean = Object.is
+): R {
+  const lastSelectedRef = useRef<R>(selector(signal.peek));
+
+  return useSyncExternalStore(
+    useCallback(
+      (onStoreChange) =>
+        scoped(
+          () =>
+            effect(() => {
+              const newSelected = selector(signal.val);
+              if (!isEqual(lastSelectedRef.current, newSelected)) {
+                lastSelectedRef.current = newSelected;
+                onStoreChange();
+              }
+            }),
+          signal.root
+        ),
+      [signal, selector, isEqual]
+    ),
+    () => selector(signal.val),
+    () => selector(signal.peek)
+  );
+}
+
 export function useFlatWriter<T>(
   signal: FlatSignal<T>
 ): (val: T | ((oldVal: T) => T)) => void {

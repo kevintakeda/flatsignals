@@ -5,17 +5,17 @@ test("peek inside memos", () => {
 	scoped(() => {
 		const memoSpy = vi.fn();
 		const x = signal("a");
-		const a = computed(() => x.val + "!");
+		const a = computed(() => x.get() + "!");
 		const b = computed(() => {
 			memoSpy();
 			return a.peek;
 		});
 
-		b.val;
+		b.get();
 		expect(memoSpy).toHaveBeenCalledTimes(1);
-		expect(b.val).toBeUndefined();
+		expect(b.get()).toBeUndefined();
 
-		x.val = "x";
+		x.set("x");
 		expect(memoSpy).toHaveBeenCalledTimes(1);
 	});
 });
@@ -24,17 +24,17 @@ test("untrack inside effects", () => {
 	scoped(() => {
 		const a = signal("a");
 		const b = signal("b");
-		const c = computed(() => a.val + b.val);
+		const c = computed(() => a.get() + b.get());
 		const spy = vi.fn(() => [a.peek, b.peek, c.peek]);
 		effect(spy);
 
 		expect(spy).toHaveBeenCalledTimes(1);
 
-		a.val = "x";
+		a.set("x");
 
 		expect(spy).toHaveBeenCalledTimes(1);
 
-		b.val = "y";
+		b.set("y");
 
 		expect(spy).toHaveBeenCalledTimes(1);
 	});

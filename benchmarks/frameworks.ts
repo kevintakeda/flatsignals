@@ -129,15 +129,15 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
 	signal: (val) => {
 		const S = flatSignal(val);
 		return {
-			set: (v) => (S.val = v),
-			get: () => S.val,
-			update: (u) => (S.val = u(S.peek)),
+			set: (v) => S.set(v),
+			get: () => S.get(),
+			update: (u) => S.set(u(S.peek)),
 		};
 	},
 	computed: (fn) => {
 		const S = flatComputed(fn);
 		return {
-			get: () => S.val,
+			get: () => S.get(),
 		};
 	},
 	effect: (fn) => flatEffect(fn),

@@ -16,21 +16,21 @@ test("untracked", () => {
 	let S!: FlatSignal<number>;
 	scoped(() => {
 		S = signal(0);
-		S.val;
+		S.get();
 		spy();
 	});
 
-	expect(spy).toBeCalledTimes(1);
-	S.val = 1;
-	expect(spy).toBeCalledTimes(1);
+	expect(spy).toHaveBeenCalledTimes(1);
+	S.set(1);
+	expect(spy).toHaveBeenCalledTimes(1);
 });
 
 test("should dispose of inner computations", () => {
 	let $x!: FlatSignal<number>;
 	let $y!: FlatCompute<number>;
 
-	const _memo = vi.fn(() => $x.val + 10);
-	const _effect = vi.fn(() => $x.val + 10);
+	const _memo = vi.fn(() => $x.get() + 10);
+	const _effect = vi.fn(() => $x.get() + 10);
 
 	const root = new FlatRoot();
 
@@ -38,19 +38,24 @@ test("should dispose of inner computations", () => {
 		$x = signal(10);
 		$y = computed(_memo);
 		effect(_effect);
-		$y.val;
+		$y.get();
 		root.dispose();
 	}, root);
 
-	// expect($y!.val).toBe(null);
+	// expect($y!.get()).toBe(null);
 	expect(_memo).toHaveBeenCalledTimes(1);
 	expect(_effect).toHaveBeenCalledTimes(1);
 
-	$x!.val = 50;
+	$x!.set(50);
 
-	// expect($y!.val).toBe(null);
+	// expect($y!.get()).toBe(null);
 	expect(_memo).toHaveBeenCalledTimes(1);
 	expect(_effect).toHaveBeenCalledTimes(1);
+});
+
+test("flush on empty root is no-op", () => {
+	const root = new FlatRoot();
+	expect(() => root.flush()).not.toThrow();
 });
 
 test("scoped", () => {
@@ -64,15 +69,15 @@ test("scoped", () => {
 		let updateInner!: () => void;
 		effect(() => {
 			spyEffectCalled();
-			if (a.val === "b") {
+			if (a.get() === "b") {
 				scoped(() => {
 					spyBCalled();
 					const $ = signal("$");
 					effect(() => {
-						$.val;
+						$.get();
 						inner();
 					});
-					updateInner = () => ($.val = $.val + $.val);
+					updateInner = () => $.set($.get() + $.get());
 				});
 			} else {
 				scoped(() => {
@@ -81,30 +86,30 @@ test("scoped", () => {
 			}
 		});
 
-		expect(spyEffectCalled).toBeCalledTimes(1);
-		expect(spyACalled).toBeCalledTimes(1);
-		expect(spyBCalled).toBeCalledTimes(0);
-		expect(inner).toBeCalledTimes(0);
+		expect(spyEffectCalled).toHaveBeenCalledTimes(1);
+		expect(spyACalled).toHaveBeenCalledTimes(1);
+		expect(spyBCalled).toHaveBeenCalledTimes(0);
+		expect(inner).toHaveBeenCalledTimes(0);
 
-		a.val = "b";
+		a.set("b");
 
-		expect(spyEffectCalled).toBeCalledTimes(2);
-		expect(spyBCalled).toBeCalledTimes(1);
-		expect(spyACalled).toBeCalledTimes(1);
-		expect(inner).toBeCalledTimes(1);
-
-		updateInner();
-
-		expect(inner).toBeCalledTimes(2);
-
-		a.val = "a";
-
-		expect(spyEffectCalled).toBeCalledTimes(3);
-		expect(inner).toBeCalledTimes(2);
+		expect(spyEffectCalled).toHaveBeenCalledTimes(2);
+		expect(spyBCalled).toHaveBeenCalledTimes(1);
+		expect(spyACalled).toHaveBeenCalledTimes(1);
+		expect(inner).toHaveBeenCalledTimes(1);
 
 		updateInner();
 
-		expect(spyEffectCalled).toBeCalledTimes(3);
-		expect(inner).toBeCalledTimes(3);
+		expect(inner).toHaveBeenCalledTimes(2);
+
+		a.set("a");
+
+		expect(spyEffectCalled).toHaveBeenCalledTimes(3);
+		expect(inner).toHaveBeenCalledTimes(2);
+
+		updateInner();
+
+		expect(spyEffectCalled).toHaveBeenCalledTimes(3);
+		expect(inner).toHaveBeenCalledTimes(3);
 	});
 });

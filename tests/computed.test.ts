@@ -1,14 +1,20 @@
 import { expect, test, vi } from "vitest";
 import { computed, scoped, signal } from "../src/index.js";
 
+test("creates implicit root when called outside scoped", () => {
+	const c = computed(() => 42);
+	expect(c.get()).toBe(42);
+	c.dispose();
+});
+
 test("is cached", () => {
 	scoped(() => {
 		const a = signal(1);
 		const b = signal(2);
-		const cSpy = vi.fn(() => a.val + b.val);
+		const cSpy = vi.fn(() => a.get() + b.get());
 		const c = computed(cSpy);
-		expect(c.val).toBe(3);
-		expect(c.val).toBe(3);
+		expect(c.get()).toBe(3);
+		expect(c.get()).toBe(3);
 		expect(cSpy).toHaveBeenCalledTimes(1);
 	});
 });
@@ -17,12 +23,12 @@ test("is lazy", () => {
 	scoped(() => {
 		const a = signal("a");
 		const b = signal("b");
-		const cSpy = vi.fn(() => a.val + b.val);
+		const cSpy = vi.fn(() => a.get() + b.get());
 		const c = computed(cSpy);
-		a.val = "a!";
-		b.val = "b!";
+		a.set("a!");
+		b.set("b!");
 		expect(cSpy).toHaveBeenCalledTimes(0);
-		expect(c.val).toBe("a!b!");
+		expect(c.get()).toBe("a!b!");
 		expect(cSpy).toHaveBeenCalledTimes(1);
 	});
 });
@@ -30,15 +36,15 @@ test("is lazy", () => {
 test("is updated", () => {
 	scoped(() => {
 		const a = signal(false);
-		const bSpy = vi.fn(() => (a.val ? "1" : "2"));
+		const bSpy = vi.fn(() => (a.get() ? "1" : "2"));
 		const b = computed(bSpy);
-		expect(b.val).toBe("2");
-		a.val = true;
-		expect(b.val).toBe("1");
-		a.val = false;
-		expect(b.val).toBe("2");
-		a.val = true;
-		expect(b.val).toBe("1");
+		expect(b.get()).toBe("2");
+		a.set(true);
+		expect(b.get()).toBe("1");
+		a.set(false);
+		expect(b.get()).toBe("2");
+		a.set(true);
+		expect(b.get()).toBe("1");
 		expect(bSpy).toHaveBeenCalledTimes(4);
 	});
 });
@@ -49,30 +55,30 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
 		const b = signal("b");
 		const c = signal("c");
 
-		const dSpy = vi.fn(() => (a.val ? b.val : c.val));
+		const dSpy = vi.fn(() => (a.get() ? b.get() : c.get()));
 		const d = computed(dSpy);
-		expect(d.val).toBe("c");
+		expect(d.get()).toBe("c");
 
-		a.val = true;
-		a.val = false;
-		expect(d.val).toBe("c");
+		a.set(true);
+		a.set(false);
+		expect(d.get()).toBe("c");
 		expect(dSpy).toHaveBeenCalledTimes(2);
-		b.val = "b!";
-		b.val = "b!!";
-		expect(d.val).toBe("c");
+		b.set("b!");
+		b.set("b!!");
+		expect(d.get()).toBe("c");
 		expect(dSpy).toHaveBeenCalledTimes(2);
 
-		a.val = true;
-		expect(d.val).toBe("b!!");
+		a.set(true);
+		expect(d.get()).toBe("b!!");
 		expect(dSpy).toHaveBeenCalledTimes(3);
 
-		c.val = "c!";
-		c.val = "c!!";
-		expect(d.val).toBe("b!!");
+		c.set("c!");
+		c.set("c!!");
+		expect(d.get()).toBe("b!!");
 		expect(dSpy).toHaveBeenCalledTimes(3);
 
-		a.val = false;
-		expect(d.val).toBe("c!!");
+		a.set(false);
+		expect(d.get()).toBe("c!!");
 		expect(dSpy).toHaveBeenCalledTimes(4);
 	});
 });
@@ -80,18 +86,18 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
 test("diamond graph runs once", () => {
 	scoped(() => {
 		const a = signal("a");
-		const b = computed(() => a.val);
-		const c = computed(() => a.val);
+		const b = computed(() => a.get());
+		const c = computed(() => a.get());
 
-		const spy = vi.fn(() => b.val + c.val);
+		const spy = vi.fn(() => b.get() + c.get());
 		const d = computed(spy);
 
-		expect(d.val).toBe("aa");
+		expect(d.get()).toBe("aa");
 		expect(spy).toHaveBeenCalledTimes(1);
 
-		a.val = "a!";
+		a.set("a!");
 
-		expect(d.val).toBe("a!a!");
+		expect(d.get()).toBe("a!a!");
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
 });
@@ -99,18 +105,20 @@ test("diamond graph runs once", () => {
 test("repeating computeds runs once", () => {
 	scoped(() => {
 		const a = signal(1);
-		const spyB = vi.fn(() => a.val + a.val);
+		const spyB = vi.fn(() => a.get() + a.get());
 		const b = computed(spyB);
-		const spyC = vi.fn(() => a.val + b.val + a.val + b.val);
+		const spyC = vi.fn(() => a.get() + b.get() + a.get() + b.get());
 		const c = computed(spyC);
-		const spyD = vi.fn(() => a.val + b.val + c.val + a.val + b.val + c.val);
+		const spyD = vi.fn(
+			() => a.get() + b.get() + c.get() + a.get() + b.get() + c.get(),
+		);
 		const d = computed(spyD);
-		expect(d.val).toBe(18);
+		expect(d.get()).toBe(18);
 		expect(spyB).toHaveBeenCalledTimes(1);
 		expect(spyC).toHaveBeenCalledTimes(1);
 		expect(spyD).toHaveBeenCalledTimes(1);
-		a.val = 4;
-		d.val;
+		a.set(4);
+		d.get();
 		expect(spyB).toHaveBeenCalledTimes(2);
 		expect(spyC).toHaveBeenCalledTimes(2);
 		expect(spyD).toHaveBeenCalledTimes(2);
@@ -129,20 +137,20 @@ test("repeating computeds runs once", () => {
 test("branching (updates and runs once)", () => {
 	scoped(() => {
 		const a = signal("a");
-		const b = computed(() => a.val);
-		const c = computed(() => a.val);
-		const dSpy = vi.fn(() => b.val + c.val);
+		const b = computed(() => a.get());
+		const c = computed(() => a.get());
+		const dSpy = vi.fn(() => b.get() + c.get());
 		const d = computed(dSpy);
-		const e = computed(() => d.val);
-		const f = computed(() => e.val);
+		const e = computed(() => d.get());
+		const f = computed(() => e.get());
 
-		expect(e.val).toBe("aa");
-		expect(f.val).toBe("aa");
+		expect(e.get()).toBe("aa");
+		expect(f.get()).toBe("aa");
 		expect(dSpy).toBeCalledTimes(1);
 
-		a.val = "b";
-		expect(e.val).toBe("bb");
-		expect(f.val).toBe("bb");
+		a.set("b");
+		expect(e.get()).toBe("bb");
+		expect(f.get()).toBe("bb");
 		expect(dSpy).toBeCalledTimes(2);
 	});
 });
@@ -156,31 +164,31 @@ test("track dependencies optimally", () => {
 		//  \  /
 		//   X
 		const a1 = signal("a");
-		const a2Spy = vi.fn(() => a1.val);
+		const a2Spy = vi.fn(() => a1.get());
 		const a2 = computed(a2Spy);
 
 		const b1 = signal("b");
-		const b2Spy = vi.fn(() => b1.val);
+		const b2Spy = vi.fn(() => b1.get());
 		const b2 = computed(b2Spy);
 
-		const x = computed(() => a2.val + b2.val);
+		const x = computed(() => a2.get() + b2.get());
 
-		x.val; // trick the graph (to catch more dependencies than needed)
+		x.get(); // trick the graph (to catch more dependencies than needed)
 		expect(a2Spy).toBeCalledTimes(1);
 		expect(b2Spy).toBeCalledTimes(1);
 
 		b2Spy.mockClear();
-		b2.val;
+		b2.get();
 		expect(b2Spy).toBeCalledTimes(0);
-		a1.val = "a!"; // updating A shouldn't affect B
-		b2.val;
+		a1.set("a!"); // updating A shouldn't affect B
+		b2.get();
 		expect(b2Spy).toBeCalledTimes(0);
 
 		a2Spy.mockClear();
-		a2.val;
+		a2.get();
 		expect(a2Spy).toBeCalledTimes(1);
-		b1.val = "b!"; // updating B shouldn't affect A
-		a2.val;
+		b1.set("b!"); // updating B shouldn't affect A
+		a2.get();
 		expect(a2Spy).toBeCalledTimes(1);
 	});
 });

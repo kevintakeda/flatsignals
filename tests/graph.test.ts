@@ -11,17 +11,17 @@ it("should run computeds once for multiple dep changes", () => {
 
 		const compute = vi.fn(() => {
 			// debugger;
-			return a.val + b.val;
+			return a.get() + b.get();
 		});
 		const c = computed(compute);
 
-		expect(c.val).toBe("ab");
+		expect(c.get()).toBe("ab");
 		expect(compute).toHaveBeenCalledOnce();
 		compute.mockClear();
 
-		a.val = "aa";
-		b.val = "bb";
-		c.val;
+		a.set("aa");
+		b.set("bb");
+		c.get();
 		expect(compute).toHaveBeenCalledOnce();
 	});
 });
@@ -37,19 +37,19 @@ it("should drop A->B->A updates", async () => {
 		//     D
 		const a = signal(2);
 
-		const b = computed(() => a.val - 1);
-		const c = computed(() => a.val + b.val);
+		const b = computed(() => a.get() - 1);
+		const c = computed(() => a.get() + b.get());
 
-		const compute = vi.fn(() => "d: " + c.val);
+		const compute = vi.fn(() => "d: " + c.get());
 		const d = computed(compute);
 
 		// Trigger read
-		expect(d.val).to.equal("d: 3");
+		expect(d.get()).to.equal("d: 3");
 		expect(compute).toHaveBeenCalledOnce();
 		compute.mockClear();
 
-		a.val = 4;
-		d.val;
+		a.set(4);
+		d.get();
 		expect(compute).toHaveBeenCalledOnce();
 	});
 });
@@ -64,17 +64,17 @@ it("should only update every signal once (diamond graph)", () => {
 		//   \   /
 		//     D
 		const a = signal("a");
-		const b = computed(() => a.val);
-		const c = computed(() => a.val);
+		const b = computed(() => a.get());
+		const c = computed(() => a.get());
 
-		const spy = vi.fn(() => b.val + " " + c.val);
+		const spy = vi.fn(() => b.get() + " " + c.get());
 		const d = computed(spy);
 
-		expect(d.val).to.equal("a a");
+		expect(d.get()).to.equal("a a");
 		expect(spy).toHaveBeenCalledOnce();
 
-		a.val = "aa";
-		expect(d.val).to.equal("aa aa");
+		a.set("aa");
+		expect(d.get()).to.equal("aa aa");
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
 });
@@ -90,19 +90,19 @@ it("should only update every signal once (diamond graph + tail)", () => {
 		//     |
 		//     E
 		const a = signal("a");
-		const b = computed(() => a.val);
-		const c = computed(() => a.val);
+		const b = computed(() => a.get());
+		const c = computed(() => a.get());
 
-		const d = computed(() => b.val + " " + c.val);
+		const d = computed(() => b.get() + " " + c.get());
 
-		const spy = vi.fn(() => d.val);
+		const spy = vi.fn(() => d.get());
 		const e = computed(spy);
 
-		expect(e.val).to.equal("a a");
+		expect(e.get()).to.equal("a a");
 		expect(spy).toHaveBeenCalledOnce();
 
-		a.val = "aa";
-		expect(e.val).to.equal("aa aa");
+		a.set("aa");
+		expect(e.get()).to.equal("aa aa");
 		expect(spy).toHaveBeenCalledTimes(2);
 	});
 });
@@ -114,18 +114,18 @@ it("should only update every signal once (diamond graph + tail)", () => {
 //     // A->B->C
 //     const a = signal("a");
 //     const b = computed(() => {
-//       a.val;
+//       a.get();
 //       return "foo";
 //     });
 
-//     const spy = vi.fn(() => b.val);
+//     const spy = vi.fn(() => b.get());
 //     const c = computed(spy);
 
-//     expect(c.val).to.equal("foo");
+//     expect(c.get()).to.equal("foo");
 //     expect(spy).toHaveBeenCalledOnce();
 
-//     a.val = "aa";
-//     expect(c.val).to.equal("foo");
+//     a.set("aa");
+//     expect(c.get()).to.equal("foo");
 //     expect(spy).toHaveBeenCalledOnce();
 //   })
 // });
@@ -144,53 +144,53 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
 		//  F     G
 		const a = signal("a");
 
-		const b = computed(() => a.val);
-		const c = computed(() => a.val);
+		const b = computed(() => a.get());
+		const c = computed(() => a.get());
 
-		const d = computed(() => c.val);
+		const d = computed(() => c.get());
 
-		const eSpy = vi.fn(() => b.val + " " + d.val);
+		const eSpy = vi.fn(() => b.get() + " " + d.get());
 		const e = computed(eSpy);
 
-		const fSpy = vi.fn(() => e.val);
+		const fSpy = vi.fn(() => e.get());
 		const f = computed(fSpy);
-		const gSpy = vi.fn(() => e.val);
+		const gSpy = vi.fn(() => e.get());
 		const g = computed(gSpy);
 
-		expect(f.val).to.equal("a a");
+		expect(f.get()).to.equal("a a");
 		expect(fSpy).toHaveBeenCalledOnce();
 
-		expect(g.val).to.equal("a a");
+		expect(g.get()).to.equal("a a");
 		expect(gSpy).toHaveBeenCalledOnce();
 
 		eSpy.mockClear();
 		fSpy.mockClear();
 		gSpy.mockClear();
 
-		a.val = "b";
+		a.set("b");
 
-		expect(e.val).to.equal("b b");
+		expect(e.get()).to.equal("b b");
 		expect(eSpy).toHaveBeenCalledOnce();
 
-		expect(f.val).to.equal("b b");
+		expect(f.get()).to.equal("b b");
 		expect(fSpy).toHaveBeenCalledOnce();
 
-		expect(g.val).to.equal("b b");
+		expect(g.get()).to.equal("b b");
 		expect(gSpy).toHaveBeenCalledOnce();
 
 		eSpy.mockClear();
 		fSpy.mockClear();
 		gSpy.mockClear();
 
-		a.val = "c";
+		a.set("c");
 
-		expect(e.val).to.equal("c c");
+		expect(e.get()).to.equal("c c");
 		expect(eSpy).toHaveBeenCalledOnce();
 
-		expect(f.val).to.equal("c c");
+		expect(f.get()).to.equal("c c");
 		expect(fSpy).toHaveBeenCalledOnce();
 
-		expect(g.val).to.equal("c c");
+		expect(g.get()).to.equal("c c");
 		expect(gSpy).toHaveBeenCalledOnce();
 
 		// top to bottom
@@ -207,15 +207,15 @@ it("should only subscribe to signals listened to", () => {
 		// *B     C <- we don't listen to C
 		const a = signal("a");
 
-		const b = computed(() => a.val);
-		const spy = vi.fn(() => a.val);
+		const b = computed(() => a.get());
+		const spy = vi.fn(() => a.get());
 		computed(spy);
 
-		expect(b.val).to.equal("a");
+		expect(b.get()).to.equal("a");
 		expect(spy).not.toHaveBeenCalled();
 
-		a.val = "aa";
-		expect(b.val).to.equal("aa");
+		a.set("aa");
+		expect(b.get()).to.equal("aa");
 		expect(spy).not.toHaveBeenCalled();
 	});
 });
@@ -231,29 +231,29 @@ it("should only subscribe to signals listened to", () => {
 		//  |
 		// *C
 		const a = signal("a");
-		const spyB = vi.fn(() => a.val);
+		const spyB = vi.fn(() => a.get());
 		const b = computed(spyB);
 
-		const spyC = vi.fn(() => b.val);
+		const spyC = vi.fn(() => b.get());
 		const c = computed(spyC);
 
-		const d = computed(() => a.val);
+		const d = computed(() => a.get());
 
 		let result = "";
-		const unsub = effect(() => (result = c.val));
+		const unsub = effect(() => (result = c.get()));
 
 		expect(result).to.equal("a");
-		expect(d.val).to.equal("a");
+		expect(d.get()).to.equal("a");
 
 		spyB.mockClear();
 		spyC.mockClear();
 		unsub();
 
-		a.val = "aa";
+		a.set("aa");
 
 		expect(spyB).not.toHaveBeenCalled();
 		expect(spyC).not.toHaveBeenCalled();
-		expect(d.val).to.equal("aa");
+		expect(d.get()).to.equal("aa");
 	});
 });
 
@@ -269,18 +269,18 @@ it("should ensure subs update even if one dep unmarks it", () => {
 		//   \   /
 		//     D
 		const a = signal("a");
-		const b = computed(() => a.val);
+		const b = computed(() => a.get());
 		const c = computed(() => {
-			a.val;
+			a.get();
 			return "c";
 		});
-		const spy = vi.fn(() => b.val + " " + c.val);
+		const spy = vi.fn(() => b.get() + " " + c.get());
 		const d = computed(spy);
-		expect(d.val).to.equal("a c");
+		expect(d.get()).to.equal("a c");
 		spy.mockClear();
 
-		a.val = "aa";
-		d.val;
+		a.set("aa");
+		d.get();
 		expect(spy).toHaveReturnedWith("aa c");
 	});
 });
@@ -296,22 +296,22 @@ it("should ensure subs update even if two deps unmark it", () => {
 		//   \ | /
 		//     E
 		const a = signal("a");
-		const b = computed(() => a.val);
+		const b = computed(() => a.get());
 		const c = computed(() => {
-			a.val;
+			a.get();
 			return "c";
 		});
 		const d = computed(() => {
-			a.val;
+			a.get();
 			return "d";
 		});
-		const spy = vi.fn(() => b.val + " " + c.val + " " + d.val);
+		const spy = vi.fn(() => b.get() + " " + c.get() + " " + d.get());
 		const e = computed(spy);
-		expect(e.val).to.equal("a c d");
+		expect(e.get()).to.equal("a c d");
 		spy.mockClear();
 
-		a.val = "aa";
-		e.val;
+		a.set("aa");
+		e.get();
 		expect(spy).toHaveReturnedWith("aa c d");
 	});
 });

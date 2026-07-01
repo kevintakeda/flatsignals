@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/style/noNonNullAssertion: guaranteed */
+
 let ROOT: FlatRoot | null = null,
 	COMPUTED: FlatCompute | null = null,
 	BATCHING = false,
@@ -12,6 +14,8 @@ export class FlatRoot {
 	_i = 0;
 	/* @internal batch mask */
 	#batch: number = 0;
+
+	constructor(public autoFlush = true) {}
 
 	dispose() {
 		this._c = [];
@@ -46,23 +50,22 @@ export class FlatRoot {
 			ROOT_QUEUE ??= this;
 		}
 		this.#batch |= mask;
-		if (!BATCHING) this._flush(true);
+		if (this.autoFlush && !BATCHING) this.flush();
 	}
 
-	/* @internal */
-	_flush(force: boolean = false) {
-		if (!this.#batch || !force) return;
+	flush() {
+		if (!this.#batch) return;
 		for (const item of this._c) {
 			if (!item._dirty && (item._sources & this.#batch) !== 0) {
 				item._dirty = true;
-				if (item._effect) item.val;
+				if (item._effect) item.get();
 			}
 		}
 		this.#batch = 0;
 	}
 }
 
-export class FlatSignal<T = any> {
+export class FlatSignal<T = undefined> {
 	#root: FlatRoot;
 	#val: T;
 	#id = 0;
@@ -75,7 +78,7 @@ export class FlatSignal<T = any> {
 		this.#id |= 1 << this.#root._as();
 	}
 
-	get val(): T {
+	get(): T {
 		if (COMPUTED) {
 			COMPUTED._sources |= this.#id;
 		}
@@ -90,7 +93,7 @@ export class FlatSignal<T = any> {
 		return this.#root;
 	}
 
-	set val(val: T) {
+	set(val: T) {
 		if (this.equals(val, this.#val)) return;
 		this.#val = val as T;
 		this.#root._queue(this.#id);
@@ -119,12 +122,11 @@ export class FlatCompute<T = unknown> {
 		this.#id = this.#root._ac(this as FlatCompute<unknown>);
 		if (effect) {
 			this._effect = effect;
-			this.val;
+			this.get();
 		}
 	}
 
-	get val(): T {
-		this.#root._flush();
+	get(): T {
 		const prevCurrent = COMPUTED;
 		if (this._dirty) {
 			COMPUTED = this as FlatCompute<unknown>;
@@ -164,7 +166,7 @@ export function batch(fn: () => void) {
 	if (BATCHING) return fn();
 	BATCHING = true;
 	fn();
-	ROOT_QUEUE?._flush(true);
+	if (ROOT_QUEUE?.autoFlush) ROOT_QUEUE?.flush();
 	ROOT_QUEUE = null;
 	BATCHING = false;
 }

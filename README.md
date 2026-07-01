@@ -76,24 +76,71 @@ const log = effect(() => console.log(double.val));
 
 ## With React
 
+### Bypass React's render cycle
+
 ```tsx
-import { useFlatSignal, useFlatReader } from "flatsignals/react";
+import { useRef } from "react";
+import {
+  useFlatRoot,
+  useFlatSignal,
+  useFlatEffect,
+  useFlatComputed,
+} from "flatsignals/react";
+import { useFrame } from "react-three-fiber";
+
+// example zero rerenders
+function FrameExample() {
+  const root = useFlatRoot(false);
+
+  const myRef = useRef(null);
+  const myCounter = useFlatSignal(1, root);
+  const myCounterDouble = useFlatComputed(() => myCounter.get() * 2, root);
+
+  useFlatEffect(() => {
+    const val = myCounterDouble.get();
+    if (myRef.current) {
+      myRef.current.style.setProperty("--clicks", val);
+    }
+  }, root);
+
+  useFrame((state) => {
+    // updates dirty effects every frame
+    root.flush();
+  });
+
+  return (
+    <div>
+      <div ref={myRef}></div>
+      <button onClick={() => myCounter.set((prev) => prev + 1)}></button>
+    </div>
+  );
+}
+```
+
+### Sync with React's render cycle
+
+```tsx
+import { useSyncFlatSignal, useSyncFlatReader } from "flatsignals/react";
 import { counter, double } from "./signals";
 
 function MyCounter() {
-  const [val, setVal] = useFlatSignal(counter);
+  const [val, setVal] = useSyncFlatSignal(counter);
   return <button onClick={() => setVal(val + 1)}>Count: {val}</button>;
 }
 
 function ReadDouble() {
-  const val = useFlatReader(double);
+  const val = useSyncFlatReader(double);
   return <div>{val}</div>;
 }
 ```
 
 ## Use Case
 
-> **Best suited for:** Scenarios with a small number of reactive signals driving many dependent computations.
+**Best suited for:**
+
+- High frequency updates that bypasses React's render cycle (e.g., animations, dragging).
+- Granular state tracking to prevent unnecessary parent-to-child re-render cascades.
+- Dynamic dependency graphs that require evaluation every frame (e.g., canvas rendering, node-based editors).
 
 **Limitations:**
 

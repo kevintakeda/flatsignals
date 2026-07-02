@@ -3,18 +3,18 @@
 	"version": "0.3.0",
 	"description": "FlatSignals is an extremely fast reactivity library (~0.5kb)",
 	"main": "dist/index.cjs",
-	"module": "dist/index.js",
+	"module": "dist/index.mjs",
 	"types": "dist/index.d.ts",
 	"files": [
 		"dist"
 	],
 	"exports": {
 		".": {
-			"import": "./dist/index.js",
+			"import": "./dist/index.mjs",
 			"types": "./dist/index.d.ts"
 		},
 		"./react": {
-			"import": "./dist/react.js",
+			"import": "./dist/react.mjs",
 			"types": "./dist/react.d.ts"
 		}
 	},
@@ -63,7 +63,7 @@
 	},
 	"size-limit": [
 		{
-			"path": "dist/index.js",
+			"path": "dist/index.mjs",
 			"limit": "1 kB"
 		}
 	],

@@ -8,8 +8,6 @@ let ROOT: FlatRoot | null = null,
 export class FlatRoot {
 	/* @internal computeds */
 	_c: Array<FlatCompute> = [];
-	/* @internal disposed computeds */
-	_x: Array<number> = [];
 	/* @internal id generator */
 	_i = 0;
 	/* @internal batch mask */
@@ -19,7 +17,6 @@ export class FlatRoot {
 
 	dispose() {
 		this._c = [];
-		this._x = [];
 		this._i = 0;
 	}
 
@@ -30,18 +27,16 @@ export class FlatRoot {
 
 	/* @internal Add computed */
 	_ac(c: FlatCompute) {
-		if (this._x.length) {
-			const u = this._x.pop()!;
-			this._c[u] = c;
-			return u;
-		} else {
-			return this._c.push(c) - 1;
-		}
+		return this._c.push(c) - 1;
 	}
 
 	/* @internal Destroy computed */
 	_dc(idx: number) {
-		this._x.push(idx);
+		const last = this._c.pop()!;
+		if (idx !== this._c.length) {
+			this._c[idx] = last;
+			last._i = idx;
+		}
 	}
 
 	/* @internal */
@@ -102,7 +97,6 @@ export class FlatSignal<T = undefined> {
 
 export class FlatCompute<T = unknown> {
 	#root: FlatRoot;
-	#id: number;
 	#val: T;
 	#fn: (() => T) | undefined;
 	/* @internal */
@@ -113,13 +107,15 @@ export class FlatCompute<T = unknown> {
 	_dirty = true;
 	/* @internal destroyed */
 	_d = false;
+	/* @internal index */
+	_i: number;
 
 	constructor(compute?: () => T, val?: T, effect?: boolean) {
 		if (!ROOT) ROOT = new FlatRoot();
 		this.#root = ROOT;
 		this.#fn = compute;
 		this.#val = val!;
-		this.#id = this.#root._ac(this as FlatCompute<unknown>);
+		this._i = this.#root._ac(this as FlatCompute<unknown>);
 		if (effect) {
 			this._effect = effect;
 			this.get();
@@ -154,7 +150,7 @@ export class FlatCompute<T = unknown> {
 		this._sources = 0;
 		this._dirty = false;
 		this._d = true;
-		this.#root._dc(this.#id);
+		this.#root._dc(this._i);
 	}
 }
 

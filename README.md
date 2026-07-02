@@ -70,8 +70,8 @@ yarn add flatsignals
 import { signal, computed, effect } from "flatsignals";
 
 const counter = signal(0);
-const double = computed(() => counter.val * 2);
-const log = effect(() => console.log(double.val));
+const double = computed(() => counter.get() * 2);
+const log = effect(() => console.log(double.get()));
 ```
 
 ## With React

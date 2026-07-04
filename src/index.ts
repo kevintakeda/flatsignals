@@ -6,11 +6,11 @@ let ROOT: FlatRoot | null = null,
 	ROOT_QUEUE: FlatRoot | null = null;
 
 export class FlatRoot {
-	/* @internal computeds */
+	/** @internal computeds */
 	_c: Array<FlatCompute> = [];
-	/* @internal id generator */
+	/** @internal id generator */
 	_i = 0;
-	/* @internal batch mask */
+	/** @internal batch mask */
 	#batch: number = 0;
 
 	constructor(public autoFlush = true) {}
@@ -20,17 +20,17 @@ export class FlatRoot {
 		this._i = 0;
 	}
 
-	/* @internal Add source */
+	/** @internal Add source */
 	_as() {
 		return this._i++ % 32;
 	}
 
-	/* @internal Add computed */
+	/** @internal Add computed */
 	_ac(c: FlatCompute) {
 		return this._c.push(c) - 1;
 	}
 
-	/* @internal Destroy computed */
+	/** @internal Destroy computed */
 	_dc(idx: number) {
 		const last = this._c.pop()!;
 		if (idx !== this._c.length) {
@@ -39,8 +39,8 @@ export class FlatRoot {
 		}
 	}
 
-	/* @internal */
-	_queue(mask: number) {
+	/** @internal queue */
+	_q(mask: number) {
 		if (!this.#batch) {
 			ROOT_QUEUE ??= this;
 		}
@@ -51,9 +51,9 @@ export class FlatRoot {
 	flush() {
 		if (!this.#batch) return;
 		for (const item of this._c) {
-			if (!item._dirty && (item._sources & this.#batch) !== 0) {
-				item._dirty = true;
-				if (item._effect) item.get();
+			if (item._s & this.#batch) {
+				item._x = true;
+				if (item._e) item.get();
 			}
 		}
 		this.#batch = 0;
@@ -75,7 +75,7 @@ export class FlatSignal<T = undefined> {
 
 	get(): T {
 		if (COMPUTED) {
-			COMPUTED._sources |= this.#id;
+			COMPUTED._s |= this.#id;
 		}
 		return this.#val as T;
 	}
@@ -91,7 +91,7 @@ export class FlatSignal<T = undefined> {
 	set(val: T) {
 		if (this.equals(val, this.#val)) return;
 		this.#val = val as T;
-		this.#root._queue(this.#id);
+		this.#root._q(this.#id);
 	}
 }
 
@@ -99,17 +99,25 @@ export class FlatCompute<T = unknown> {
 	#root: FlatRoot;
 	#val: T;
 	#fn: (() => T) | undefined;
-	/* @internal */
-	_effect: boolean = false;
-	/* @internal */
-	_sources: number = 0;
-	/* @internal */
-	_dirty = true;
-	/* @internal destroyed */
+	/** @internal effect */
+	_e = false;
+	/** @internal sources */
+	_s = 0;
+	/** @internal dirty */
+	_x = true;
+	/** @internal disposed */
 	_d = false;
-	/* @internal index */
-	_i: number;
+	/** @internal index */
+	_i!: number;
 
+	constructor(
+		// biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
+		compute?: () => (() => void) | void,
+		val?: undefined,
+		effect?: true,
+	);
+	constructor(compute?: () => T);
+	constructor(compute?: () => T, val?: T);
 	constructor(compute?: () => T, val?: T, effect?: boolean) {
 		if (!ROOT) ROOT = new FlatRoot();
 		this.#root = ROOT;
@@ -117,22 +125,23 @@ export class FlatCompute<T = unknown> {
 		this.#val = val!;
 		this._i = this.#root._ac(this as FlatCompute<unknown>);
 		if (effect) {
-			this._effect = effect;
+			this._e = effect;
 			this.get();
 		}
 	}
 
 	get(): T {
 		const prevCurrent = COMPUTED;
-		if (this._dirty) {
+		if (this._x) {
+			if (this._e) (this.#val as (() => void) | undefined)?.();
 			COMPUTED = this as FlatCompute<unknown>;
-			this._sources = 0;
+			this._s = 0;
 			this.#val = this.#fn!();
-			this._dirty = false;
+			this._x = false;
 			COMPUTED = prevCurrent;
 		}
 		if (prevCurrent) {
-			prevCurrent._sources |= this._sources;
+			prevCurrent._s |= this._s;
 		}
 		return this.#val!;
 	}
@@ -147,8 +156,9 @@ export class FlatCompute<T = unknown> {
 
 	dispose() {
 		if (this._d) return;
-		this._sources = 0;
-		this._dirty = false;
+		if (this._e) (this.#val as (() => void) | undefined)?.();
+		this._s = 0;
+		this._x = false;
 		this._d = true;
 		this.#root._dc(this._i);
 	}
@@ -185,7 +195,8 @@ export function computed<T>(val: () => T): FlatCompute<T> {
 	return new FlatCompute(val);
 }
 
-export function effect<T = unknown>(fn: () => T) {
+// biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
+export function effect(fn: () => void | (() => void)) {
 	const sig = new FlatCompute(fn, undefined, true);
 	return sig.dispose.bind(sig);
 }

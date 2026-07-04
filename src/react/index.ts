@@ -109,20 +109,8 @@ export function useFlatEffect(
 	const onEffect = useEffectEvent(fn);
 
 	useEffect(() => {
-		let cleanup: (() => void) | undefined;
-		const stop = scoped(
-			() =>
-				effect(() => {
-					if (cleanup) cleanup();
-					cleanup = onEffect();
-				}),
-			root,
-		);
-
-		return () => {
-			if (cleanup) cleanup();
-			stop();
-		};
+		const stop = scoped(() => effect(onEffect), root);
+		return () => stop();
 	}, [root]);
 }
 

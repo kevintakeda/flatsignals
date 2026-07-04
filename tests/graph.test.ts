@@ -240,7 +240,7 @@ it("should only subscribe to signals listened to", () => {
 		const d = computed(() => a.get());
 
 		let result = "";
-		const unsub = effect(() => (result = c.get()));
+		const unsub = effect(() => void (result = c.get()));
 
 		expect(result).to.equal("a");
 		expect(d.get()).to.equal("a");

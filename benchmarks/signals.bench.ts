@@ -169,6 +169,28 @@ describe("signal creation", () => {
 	runAll(op);
 });
 
+describe("effect + disposal", () => {
+	function op(api: FrameworkBenchmarkApi) {
+		let i = 0;
+		return api.root(() => {
+			const source = api.signal(0);
+			const double = api.computed(() => source.get() * 2);
+			const triple = api.computed(() => source.get() * 2);
+			return () => {
+				const dispose = api.effect(() => {
+					double.get();
+					triple.get();
+				});
+				api.runSync(() => {
+					source.set(i++);
+				});
+				dispose();
+			};
+		});
+	}
+	runAll(op);
+});
+
 describe("update computed", () => {
 	function op(api: FrameworkBenchmarkApi) {
 		return api.root(() => {

@@ -66,7 +66,7 @@ export interface FrameworkBenchmarkApi {
 	name: string;
 	signal<T>(val: T): FrameworkSignal<T>;
 	computed<T>(fn: () => T): FrameworkComputed<T>;
-	effect(fn: () => void): void;
+	effect(fn: () => void): () => void;
 	runSync<T>(fn: () => T): void;
 	root<T>(fn: () => T): T;
 	cleanup?(): void;
@@ -140,7 +140,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
 			get: () => S.get(),
 		};
 	},
-	effect: (fn) => flatEffect(fn),
+	effect: (fn) => flatEffect(() => void fn()),
 	runSync: (fn) => {
 		flatBatch(() => fn());
 	},
@@ -163,7 +163,10 @@ export const ReactivelyFramework: FrameworkBenchmarkApi = {
 			get: () => S.get(),
 		};
 	},
-	effect: (fn) => new Reactive(fn, true),
+	effect: (fn) => {
+		const r = new Reactive(fn, true);
+		return () => r.set();
+	},
 	runSync: (fn) => {
 		fn();
 		stabilize();

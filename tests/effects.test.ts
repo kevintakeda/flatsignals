@@ -4,7 +4,7 @@ import { batch, computed, effect, scoped, signal } from "../src/index.js";
 test("nested batch becomes part of outer flush", () => {
 	scoped(() => {
 		const a = signal(0);
-		const fn = vi.fn(() => a.get());
+		const fn = vi.fn(() => void a.get());
 		effect(fn);
 		expect(fn).toHaveBeenCalledTimes(1);
 		fn.mockClear();
@@ -30,7 +30,7 @@ test("effects", () => {
 	scoped(() => {
 		const a = signal(1);
 		const b = signal(2);
-		const cSpy = vi.fn(() => a.get() + b.get());
+		const cSpy = vi.fn(() => void (a.get() + b.get()));
 		effect(cSpy);
 
 		expect(cSpy).toHaveBeenCalledTimes(1);
@@ -54,7 +54,7 @@ test("unsubscribe invisible dependencies", () => {
 		const a = signal(true);
 		const b = signal("b");
 		const c = signal("c");
-		const fSpy = vi.fn(() => (a.get() ? b.get() : c.get()));
+		const fSpy = vi.fn(() => void (a.get() ? b.get() : c.get()));
 		effect(fSpy);
 
 		expect(fSpy).toHaveBeenCalledTimes(1);
@@ -114,7 +114,7 @@ test("unsubscribe invisible dependencies", () => {
 
 test("double dispose is no-op", () => {
 	const a = signal("a");
-	const dispose = effect(() => a.get());
+	const dispose = effect(() => void a.get());
 	dispose();
 	expect(() => dispose()).not.toThrow();
 });
@@ -122,7 +122,7 @@ test("double dispose is no-op", () => {
 test("dispose effects", () => {
 	scoped(() => {
 		const a = signal("a");
-		const bSpy = vi.fn(() => a.get());
+		const bSpy = vi.fn(() => void a.get());
 		const dispose = effect(bSpy);
 		expect(bSpy).toHaveBeenCalledTimes(1);
 
@@ -177,13 +177,44 @@ test("effect with deep dependencies", () => {
 		const c = computed(spyC);
 		const spyD = vi.fn(() => c.get());
 		const d = computed(spyD);
-		const spyE = vi.fn(() => d.get());
+		const spyE = vi.fn(() => void d.get());
 		effect(spyE);
 
 		expect(spyE).toHaveBeenCalledTimes(1);
 		a.set(4);
 
 		expect(spyE).toHaveBeenCalledTimes(2);
+	});
+});
+
+test("dispose calls cleanup function", () => {
+	scoped(() => {
+		const a = signal("a");
+		const cleanup = vi.fn();
+		const dispose = effect(() => {
+			a.get();
+			return cleanup;
+		});
+
+		expect(cleanup).toHaveBeenCalledTimes(0);
+		dispose();
+		expect(cleanup).toHaveBeenCalledTimes(1);
+	});
+});
+
+test("dispose stops effect from re-running on signal changes", () => {
+	scoped(() => {
+		const a = signal(0);
+		const spy = vi.fn(() => void a.get());
+		const dispose = effect(spy);
+
+		expect(spy).toHaveBeenCalledTimes(1);
+		dispose();
+
+		a.set(1);
+		a.set(2);
+		a.set(3);
+		expect(spy).toHaveBeenCalledTimes(1);
 	});
 });
 

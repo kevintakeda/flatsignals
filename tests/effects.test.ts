@@ -1,8 +1,8 @@
 import { expect, test, vi } from "vitest";
-import { batch, computed, effect, scoped, signal } from "../src/index.js";
+import { batch, computed, effect, runWithRoot, signal } from "../src/index.js";
 
 test("nested batch becomes part of outer flush", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(0);
 		const fn = vi.fn(() => void a.get());
 		effect(fn);
@@ -27,7 +27,7 @@ test("nested batch becomes part of outer flush", () => {
 });
 
 test("effects", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(1);
 		const b = signal(2);
 		const cSpy = vi.fn(() => void (a.get() + b.get()));
@@ -50,7 +50,7 @@ test("effects", () => {
 });
 
 test("unsubscribe invisible dependencies", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(true);
 		const b = signal("b");
 		const c = signal("c");
@@ -82,7 +82,7 @@ test("unsubscribe invisible dependencies", () => {
 
 // TODO: unsopported for now
 // test("nested effects run once", () => {
-// 	scoped(() => {
+// 	runWithRoot(() => {
 // 		const a = signal(2);
 // 		const spyX = vi.fn(() => a.get());
 // 		const spyY = vi.fn(() => a.get());
@@ -120,7 +120,7 @@ test("double dispose is no-op", () => {
 });
 
 test("dispose effects", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const bSpy = vi.fn(() => void a.get());
 		const dispose = effect(bSpy);
@@ -143,7 +143,7 @@ test("dispose effects", () => {
 });
 
 test("effect with conditional dependencies", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const s1 = signal(true);
 		const s2 = signal("a");
 		const s3 = signal("b");
@@ -169,7 +169,7 @@ test("effect with conditional dependencies", () => {
 });
 
 test("effect with deep dependencies", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(2);
 		const spyB = vi.fn(() => a.get() + 1);
 		const b = computed(spyB);
@@ -188,7 +188,7 @@ test("effect with deep dependencies", () => {
 });
 
 test("dispose calls cleanup function", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const cleanup = vi.fn();
 		const dispose = effect(() => {
@@ -203,7 +203,7 @@ test("dispose calls cleanup function", () => {
 });
 
 test("dispose stops effect from re-running on signal changes", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(0);
 		const spy = vi.fn(() => void a.get());
 		const dispose = effect(spy);
@@ -220,7 +220,7 @@ test("dispose stops effect from re-running on signal changes", () => {
 
 test("effects using sources from top to bottom", () => {
 	const count = vi.fn();
-	return scoped(() => {
+	return runWithRoot(() => {
 		const x = signal("x");
 		const a = computed(() => x.get());
 		const b = computed(() => a.get());

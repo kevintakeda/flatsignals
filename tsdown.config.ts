@@ -9,7 +9,9 @@ export default defineConfig({
 	dts: true,
 	sourcemap: true,
 	clean: true,
-	external: ["react"],
+	deps: {
+		neverBundle: ["react"],
+	},
 	treeshake: true,
 	bundle: true,
 });

@@ -7,18 +7,18 @@ import {
 	type FlatCompute,
 	FlatRoot,
 	type FlatSignal,
-	scoped,
+	runWithRoot,
 	signal,
 } from "../src/index.js";
 
 test("untracked", () => {
 	const spy = vi.fn();
 	let S!: FlatSignal<number>;
-	scoped(() => {
+	runWithRoot(() => {
 		S = signal(0);
 		S.get();
 		spy();
-	});
+	}, new FlatRoot());
 
 	expect(spy).toHaveBeenCalledTimes(1);
 	S.set(1);
@@ -30,11 +30,13 @@ test("should dispose of inner computations", () => {
 	let $y!: FlatCompute<number>;
 
 	const _memo = vi.fn(() => $x.get() + 10);
-	const _effect = vi.fn(() => $x.get() + 10);
+	const _effect = vi.fn(() => {
+		$x.get() + 10;
+	});
 
 	const root = new FlatRoot();
 
-	scoped(() => {
+	runWithRoot(() => {
 		$x = signal(10);
 		$y = computed(_memo);
 		effect(_effect);
@@ -58,19 +60,19 @@ test("flush on empty root is no-op", () => {
 	expect(() => root.flush()).not.toThrow();
 });
 
-test("scoped", () => {
+test("runWithRoot", () => {
 	const spyEffectCalled = vi.fn();
 	const spyBCalled = vi.fn();
 	const spyACalled = vi.fn();
 	const inner = vi.fn();
 
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		let updateInner!: () => void;
 		effect(() => {
 			spyEffectCalled();
 			if (a.get() === "b") {
-				scoped(() => {
+				runWithRoot(() => {
 					spyBCalled();
 					const $ = signal("$");
 					effect(() => {
@@ -80,7 +82,7 @@ test("scoped", () => {
 					updateInner = () => $.set($.get() + $.get());
 				});
 			} else {
-				scoped(() => {
+				runWithRoot(() => {
 					spyACalled();
 				});
 			}

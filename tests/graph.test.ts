@@ -2,10 +2,10 @@
 /** biome-ignore-all lint/suspicious/noAssignInExpressions: conciseness */
 
 import { expect, it, vi } from "vitest";
-import { computed, effect, scoped, signal } from "../src/index.js";
+import { computed, effect, runWithRoot, signal } from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const b = signal("b");
 
@@ -27,7 +27,7 @@ it("should run computeds once for multiple dep changes", () => {
 });
 
 it("should drop A->B->A updates", async () => {
-	scoped(() => {
+	runWithRoot(() => {
 		//     A
 		//   / |
 		//  B  | <- Looks like a flag doesn't it? :D
@@ -55,7 +55,7 @@ it("should drop A->B->A updates", async () => {
 });
 
 it("should only update every signal once (diamond graph)", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// In this scenario "D" should only update once when "A" receives
 		// an update. This is sometimes referred to as the "diamond" scenario.
 		//     A
@@ -80,7 +80,7 @@ it("should only update every signal once (diamond graph)", () => {
 });
 
 it("should only update every signal once (diamond graph + tail)", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// "E" will be likely updated twice if our mark+sweep logic is buggy.
 		//     A
 		//   /   \
@@ -109,7 +109,7 @@ it("should only update every signal once (diamond graph + tail)", () => {
 
 // this library can't bail out.
 // it("should bail out if result is the same", () => {
-//   scoped(() => {
+//   runWithRoot(() => {
 //     // Bail out if value of "B" never changes
 //     // A->B->C
 //     const a = signal("a");
@@ -131,7 +131,7 @@ it("should only update every signal once (diamond graph + tail)", () => {
 // });
 
 it("should only update every signal once (jagged diamond graph + tails)", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// "F" and "G" will be likely updated twice if our mark+sweep logic is buggy.
 		//     A
 		//   /   \
@@ -201,7 +201,7 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
 });
 
 it("should only subscribe to signals listened to", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		//    *A
 		//   /   \
 		// *B     C <- we don't listen to C
@@ -221,7 +221,7 @@ it("should only subscribe to signals listened to", () => {
 });
 
 it("should only subscribe to signals listened to", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// Here both "B" and "C" are active in the beginning, but
 		// "B" becomes inactive later. At that point it should
 		// not receive any updates anymore.
@@ -258,7 +258,7 @@ it("should only subscribe to signals listened to", () => {
 });
 
 it("should ensure subs update even if one dep unmarks it", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// In this scenario "C" always returns the same value. When "A"
 		// changes, "B" will update, then "C" at which point its update
 		// to "D" will be unmarked. But "D" must still update because
@@ -286,7 +286,7 @@ it("should ensure subs update even if one dep unmarks it", () => {
 });
 
 it("should ensure subs update even if two deps unmark it", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// In this scenario both "C" and "D" always return the same
 		// value. But "E" must still update because "A"  marked it.
 		// If "E" isn't updated, then we have a bug.

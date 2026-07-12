@@ -6,7 +6,7 @@ import {
 	computed,
 	type FlatCompute,
 	FlatRoot,
-	scoped,
+	runWithRoot,
 	signal,
 } from "../src/index.js";
 import {
@@ -197,7 +197,7 @@ describe("useFlatScope", () => {
 		expect(result.current).toBe(42);
 	});
 
-	test("evaluates callback in scoped context", () => {
+	test("evaluates callback in runWithRoot context", () => {
 		const fn = vi.fn(() => signal(1));
 		renderHook(() => useFlatScope(fn));
 		expect(fn).toHaveBeenCalledTimes(1);
@@ -328,7 +328,7 @@ describe("useFlatEffect", () => {
 
 	test("re-runs when tracked signal in same root changes", () => {
 		const root = new FlatRoot();
-		const s = scoped(() => signal(1), root);
+		const s = runWithRoot(() => signal(1), root);
 		const fn = vi.fn((): (() => void) | undefined => {
 			s.get();
 			return undefined;
@@ -343,7 +343,7 @@ describe("useFlatEffect", () => {
 
 	test("cleanup runs before re-run on dependency change", () => {
 		const root = new FlatRoot();
-		const s = scoped(() => signal(1), root);
+		const s = runWithRoot(() => signal(1), root);
 		const cleanup: () => void = vi.fn();
 		const fn = vi.fn((): (() => void) | undefined => {
 			s.get();
@@ -360,8 +360,8 @@ describe("useFlatEffect", () => {
 
 	test("does not re-run on unrelated signal changes", () => {
 		const root = new FlatRoot();
-		const a = scoped(() => signal(1), root);
-		const b = scoped(() => signal("unrelated"), root);
+		const a = runWithRoot(() => signal(1), root);
+		const b = runWithRoot(() => signal("unrelated"), root);
 		const fn = vi.fn((): (() => void) | undefined => {
 			a.get();
 			return undefined;
@@ -376,7 +376,7 @@ describe("useFlatEffect", () => {
 
 	test("stops effect on unmount", () => {
 		const root = new FlatRoot();
-		const s = scoped(() => signal(1), root);
+		const s = runWithRoot(() => signal(1), root);
 		const fn = vi.fn((): (() => void) | undefined => {
 			s.get();
 			return undefined;
@@ -402,7 +402,7 @@ describe("useFlatComputed", () => {
 
 	test("computed updates when signal dependency in same root changes", () => {
 		const root = new FlatRoot();
-		const s = scoped(() => signal(1), root);
+		const s = runWithRoot(() => signal(1), root);
 		const { result } = renderHook(() =>
 			useFlatComputed(() => s.get() * 2, root),
 		);
@@ -426,7 +426,7 @@ describe("useFlatComputed", () => {
 
 	test("computed re-evaluates with latest callback when signal deps change", () => {
 		const root = new FlatRoot();
-		const s = scoped(() => signal(1), root);
+		const s = runWithRoot(() => signal(1), root);
 		const { result, rerender } = renderHook(
 			({ mult }: { mult: number }) =>
 				useFlatComputed(() => s.get() * mult, root),
@@ -473,7 +473,7 @@ describe("useFlatSignal", () => {
 		expect(result.current).toBe(first);
 	});
 
-	test("signal is scoped to the provided root", () => {
+	test("signal is runWithRoot to the provided root", () => {
 		const root = new FlatRoot();
 		const { result } = renderHook(() => useFlatSignal(1, root));
 		expect(result.current.root).toBe(root);

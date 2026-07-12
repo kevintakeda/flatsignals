@@ -1,9 +1,10 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: guaranteed */
 
-let ROOT: FlatRoot | null = null,
+let BATCHING = false,
+	ROOT: FlatRoot | null = null,
 	COMPUTED: FlatCompute | null = null,
-	BATCHING = false,
-	ROOT_QUEUE: FlatRoot | null = null;
+	ROOT_QUEUE: Array<FlatRoot> | null = null,
+	SCOPE: Array<FlatRoot> | null = null;
 
 export class FlatRoot {
 	/** @internal computeds */
@@ -13,25 +14,30 @@ export class FlatRoot {
 	/** @internal batch mask */
 	#batch: number = 0;
 
-	constructor(public autoFlush = true) {}
+	constructor(public autoFlush = true) {
+		SCOPE?.push(this);
+	}
 
 	dispose() {
+		this._c.forEach((el) => {
+			el.dispose(true);
+		});
 		this._c = [];
 		this._i = 0;
 	}
 
 	/** @internal Add source */
-	_as() {
+	_s() {
 		return this._i++ % 32;
 	}
 
 	/** @internal Add computed */
-	_ac(c: FlatCompute) {
+	_a(c: FlatCompute) {
 		return this._c.push(c) - 1;
 	}
 
 	/** @internal Destroy computed */
-	_dc(idx: number) {
+	_d(idx: number) {
 		const last = this._c.pop()!;
 		if (idx !== this._c.length) {
 			this._c[idx] = last;
@@ -41,10 +47,11 @@ export class FlatRoot {
 
 	/** @internal queue */
 	_q(mask: number) {
-		if (!this.#batch) {
-			ROOT_QUEUE ??= this;
+		if (BATCHING && !this.#batch) {
+			ROOT_QUEUE?.push(this);
 		}
 		this.#batch |= mask;
+
 		if (this.autoFlush && !BATCHING) this.flush();
 	}
 
@@ -64,13 +71,12 @@ export class FlatSignal<T = undefined> {
 	#root: FlatRoot;
 	#val: T;
 	#id = 0;
-	equals = defaultEquality;
 
 	constructor(val?: T) {
 		if (!ROOT) ROOT = new FlatRoot();
 		this.#root = ROOT;
 		this.#val = val as T;
-		this.#id |= 1 << this.#root._as();
+		this.#id |= 1 << this.#root._s();
 	}
 
 	get(): T {
@@ -89,7 +95,7 @@ export class FlatSignal<T = undefined> {
 	}
 
 	set(val: T) {
-		if (this.equals(val, this.#val)) return;
+		if (this.#val === val) return;
 		this.#val = val as T;
 		this.#root._q(this.#id);
 	}
@@ -123,7 +129,7 @@ export class FlatCompute<T = unknown> {
 		this.#root = ROOT;
 		this.#fn = compute;
 		this.#val = val!;
-		this._i = this.#root._ac(this as FlatCompute<unknown>);
+		this._i = this.#root._a(this as FlatCompute<unknown>);
 		if (effect) {
 			this._e = effect;
 			this.get();
@@ -154,35 +160,57 @@ export class FlatCompute<T = unknown> {
 		return this.#root;
 	}
 
-	dispose() {
+	dispose(detach: boolean = true) {
 		if (this._d) return;
 		if (this._e) (this.#val as (() => void) | undefined)?.();
 		this._s = 0;
 		this._x = false;
 		this._d = true;
-		this.#root._dc(this._i);
+		if (!detach) this.#root._d(this._i);
 	}
-}
-
-function defaultEquality(a: unknown, b: unknown) {
-	return a === b;
 }
 
 export function batch(fn: () => void) {
 	if (BATCHING) return fn();
+	ROOT_QUEUE = [];
 	BATCHING = true;
 	fn();
-	if (ROOT_QUEUE?.autoFlush) ROOT_QUEUE?.flush();
+	ROOT_QUEUE.forEach((R) => {
+		if (R.autoFlush) R.flush();
+	});
 	ROOT_QUEUE = null;
 	BATCHING = false;
 }
 
-export function scoped<T>(fn: () => T, scope?: FlatRoot): T {
+export function runWithRoot<T>(fn: () => T, root?: FlatRoot): T {
 	const prevRoot = ROOT;
-	ROOT = scope ?? new FlatRoot();
+	ROOT = root ?? new FlatRoot();
 	const result = fn();
 	ROOT = prevRoot;
 	return result;
+}
+
+export function scoped<T>(fn: () => T, scope: Array<FlatRoot>): T {
+	const prev = SCOPE;
+	SCOPE = scope;
+	const result = fn();
+	SCOPE = prev;
+	return result;
+}
+
+export function link<T>(reader: FlatCompute<T> | FlatSignal<T>) {
+	const s = signal(reader.peek);
+	runWithRoot(() => {
+		effect(() => {
+			const curr = reader.get();
+			s.set(curr);
+		});
+	}, reader.root);
+	return s;
+}
+
+export function getRoot() {
+	return ROOT;
 }
 
 export function signal<T>(value: T): FlatSignal<T>;
@@ -196,7 +224,7 @@ export function computed<T>(val: () => T): FlatCompute<T> {
 }
 
 // biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
-export function effect(fn: () => void | (() => void)) {
+export function effect(fn: () => void | (() => void)): () => void {
 	const sig = new FlatCompute(fn, undefined, true);
 	return sig.dispose.bind(sig);
 }

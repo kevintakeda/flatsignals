@@ -13,7 +13,7 @@ import {
 	type FlatCompute,
 	FlatRoot,
 	type FlatSignal,
-	scoped,
+	runWithRoot,
 	signal,
 } from "../index.js";
 
@@ -26,7 +26,7 @@ export function useSyncFlatReader<T>(
 	return useSyncExternalStore(
 		useCallback(
 			(onStoreChange) =>
-				scoped(
+				runWithRoot(
 					() =>
 						effect(() => {
 							const newValue = signal.get();
@@ -54,7 +54,7 @@ export function useSyncFlatSelector<T, R>(
 	return useSyncExternalStore(
 		useCallback(
 			(onStoreChange) =>
-				scoped(
+				runWithRoot(
 					() =>
 						effect(() => {
 							const newSelected = selector(signal.get());
@@ -94,7 +94,7 @@ export function useSyncFlatSignal<T>(signal: FlatSignal<T>) {
 }
 
 export function useFlatScope<T>(callback: () => T, scope?: FlatRoot): T {
-	return useMemo(() => scoped(callback, scope), [callback, scope]);
+	return useMemo(() => runWithRoot(callback, scope), [callback, scope]);
 }
 
 export function useFlatRoot(autoFlush?: boolean) {
@@ -109,7 +109,7 @@ export function useFlatEffect(
 	const onEffect = useEffectEvent(fn);
 
 	useEffect(() => {
-		const stop = scoped(() => effect(onEffect), root);
+		const stop = runWithRoot(() => effect(onEffect), root);
 		return () => stop();
 	}, [root]);
 }
@@ -122,7 +122,7 @@ export function useFlatComputed<T>(
 	fnRef.current = fn;
 
 	const [s] = useState(() =>
-		scoped(() => computed(() => fnRef.current()), root),
+		runWithRoot(() => computed(() => fnRef.current()), root),
 	);
 
 	useEffect(() => {
@@ -133,6 +133,6 @@ export function useFlatComputed<T>(
 }
 
 export function useFlatSignal<T>(value: T, root: FlatRoot) {
-	const [s] = useState(() => scoped(() => signal(value), root));
+	const [s] = useState(() => runWithRoot(() => signal(value), root));
 	return s;
 }

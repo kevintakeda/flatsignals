@@ -1,14 +1,14 @@
 import { expect, test, vi } from "vitest";
-import { computed, scoped, signal } from "../src/index.js";
+import { computed, runWithRoot, signal } from "../src/index.js";
 
-test("creates implicit root when called outside scoped", () => {
+test("creates implicit root when called outside runWithRoot", () => {
 	const c = computed(() => 42);
 	expect(c.get()).toBe(42);
 	c.dispose();
 });
 
 test("is cached", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(1);
 		const b = signal(2);
 		const cSpy = vi.fn(() => a.get() + b.get());
@@ -20,7 +20,7 @@ test("is cached", () => {
 });
 
 test("is lazy", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const b = signal("b");
 		const cSpy = vi.fn(() => a.get() + b.get());
@@ -34,7 +34,7 @@ test("is lazy", () => {
 });
 
 test("is updated", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(false);
 		const bSpy = vi.fn(() => (a.get() ? "1" : "2"));
 		const b = computed(bSpy);
@@ -50,7 +50,7 @@ test("is updated", () => {
 });
 
 test("is dynamic (unsubscribe invisible dependencies)", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(false);
 		const b = signal("b");
 		const c = signal("c");
@@ -84,7 +84,7 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
 });
 
 test("diamond graph runs once", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const b = computed(() => a.get());
 		const c = computed(() => a.get());
@@ -103,7 +103,7 @@ test("diamond graph runs once", () => {
 });
 
 test("repeating computeds runs once", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal(1);
 		const spyB = vi.fn(() => a.get() + a.get());
 		const b = computed(spyB);
@@ -135,7 +135,7 @@ test("repeating computeds runs once", () => {
 //   |
 //   F
 test("branching (updates and runs once)", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		const a = signal("a");
 		const b = computed(() => a.get());
 		const c = computed(() => a.get());
@@ -156,7 +156,7 @@ test("branching (updates and runs once)", () => {
 });
 
 test("track dependencies optimally", () => {
-	scoped(() => {
+	runWithRoot(() => {
 		// After X is read changing A1 source shouldn't affect B2 computed.
 		// A1  B1
 		// |   |

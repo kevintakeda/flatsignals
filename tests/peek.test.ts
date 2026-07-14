@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { computed, effect, runWithRoot, signal } from "../src/index.js";
+import { computed, effect, runWithRoot, signal, untrack } from "../src/index.js";
 
 test("peek inside memos", () => {
 	runWithRoot(() => {
@@ -40,4 +40,50 @@ test("untrack inside effects", () => {
 
 		expect(spy).toHaveBeenCalledTimes(1);
 	});
+});
+
+test("untrack inside computed", () => {
+	runWithRoot(() => {
+		const a = signal("a");
+		const b = signal("b");
+		const spy = vi.fn();
+		const c = computed(() => {
+			spy();
+			return untrack(() => a.get() + b.get());
+		});
+
+		c.get();
+		expect(spy).toHaveBeenCalledTimes(1);
+		expect(c.get()).toBe("ab");
+
+		a.set("x");
+		expect(spy).toHaveBeenCalledTimes(1);
+		expect(c.peek).toBe("ab");
+	});
+});
+
+test("untrack inside effect", () => {
+	runWithRoot(() => {
+		const a = signal("a");
+		const b = signal("b");
+		const spy = vi.fn();
+		effect(() => {
+			spy();
+			untrack(() => a.get());
+			b.get();
+		});
+
+		expect(spy).toHaveBeenCalledTimes(1);
+
+		a.set("x");
+		expect(spy).toHaveBeenCalledTimes(1);
+
+		b.set("y");
+		expect(spy).toHaveBeenCalledTimes(2);
+	});
+});
+
+test("untrack returns value", () => {
+	const result = untrack(() => 42);
+	expect(result).toBe(42);
 });

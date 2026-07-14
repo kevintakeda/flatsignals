@@ -80,7 +80,7 @@ export class FlatSignal<T = undefined> {
 	}
 
 	get(): T {
-		if (COMPUTED) {
+		if (COMPUTED && COMPUTED.root === this.#root) {
 			COMPUTED._s |= this.#id;
 		}
 		return this.#val as T;
@@ -198,12 +198,19 @@ export function scoped<T>(fn: () => T, scope: Array<FlatRoot>): T {
 	return result;
 }
 
+export function untrack<T>(fn: () => T): T {
+	const prev = COMPUTED;
+	COMPUTED = null;
+	const result = fn();
+	COMPUTED = prev;
+	return result;
+}
+
 export function link<T>(reader: FlatCompute<T> | FlatSignal<T>) {
 	const s = signal(reader.peek);
 	runWithRoot(() => {
 		effect(() => {
-			const curr = reader.get();
-			s.set(curr);
+			s.set(reader.get());
 		});
 	}, reader.root);
 	return s;

@@ -1,6 +1,6 @@
 # FlatSignals
 
-**FlatSignals** is an ultra-fast reactivity library (~0.5 KB) optimized for **high-frequency, few-to-many updates**.
+**FlatSignals** is an ultra-fast reactivity library (~0.6 KB) optimized for **high-frequency, few-to-many updates**.
 
 ## 🚀 Why it’s fast:
 

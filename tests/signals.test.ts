@@ -1,11 +1,11 @@
 import { expect, test, vi } from "vitest";
-import { computed, runWithRoot, signal } from "../src/index.js";
+import { computed, FlatRoot, runWithRoot, signal } from "../src/index.js";
 
 test("store and return a value", () => {
 	runWithRoot(() => {
 		const a = signal(1);
 		expect(a.get()).toBe(1);
-	});
+	}, new FlatRoot());
 });
 
 test("updates its value", () => {
@@ -13,7 +13,7 @@ test("updates its value", () => {
 		const a = signal(1);
 		a.set(2);
 		expect(a.get()).toBe(2);
-	});
+	}, new FlatRoot());
 });
 
 test("always updates", () => {
@@ -23,7 +23,7 @@ test("always updates", () => {
 		expect(a.get()).toBe(1);
 		a.set(2);
 		expect(a.get()).toBe(2);
-	});
+	}, new FlatRoot());
 });
 
 test("set with equal value triggers no reaction (defaultEquality)", () => {

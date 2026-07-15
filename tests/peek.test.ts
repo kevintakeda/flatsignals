@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { computed, effect, runWithRoot, signal, untrack } from "../src/index.js";
+import { computed, effect, FlatRoot, runWithRoot, signal, untrack } from "../src/index.js";
 
 test("peek inside memos", () => {
 	runWithRoot(() => {
@@ -17,7 +17,7 @@ test("peek inside memos", () => {
 
 		x.set("x");
 		expect(memoSpy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("untrack inside effects", () => {
@@ -39,7 +39,7 @@ test("untrack inside effects", () => {
 		b.set("y");
 
 		expect(spy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("untrack inside computed", () => {
@@ -59,7 +59,7 @@ test("untrack inside computed", () => {
 		a.set("x");
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(c.peek).toBe("ab");
-	});
+	}, new FlatRoot());
 });
 
 test("untrack inside effect", () => {
@@ -80,7 +80,7 @@ test("untrack inside effect", () => {
 
 		b.set("y");
 		expect(spy).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 test("untrack returns value", () => {

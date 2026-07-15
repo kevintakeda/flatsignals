@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { computed, runWithRoot, signal } from "../src/index.js";
+import { computed, FlatRoot, runWithRoot, signal } from "../src/index.js";
 
 test("creates implicit root when called outside runWithRoot", () => {
 	const c = computed(() => 42);
@@ -16,7 +16,7 @@ test("is cached", () => {
 		expect(c.get()).toBe(3);
 		expect(c.get()).toBe(3);
 		expect(cSpy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("is lazy", () => {
@@ -30,7 +30,7 @@ test("is lazy", () => {
 		expect(cSpy).toHaveBeenCalledTimes(0);
 		expect(c.get()).toBe("a!b!");
 		expect(cSpy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("is updated", () => {
@@ -46,7 +46,7 @@ test("is updated", () => {
 		a.set(true);
 		expect(b.get()).toBe("1");
 		expect(bSpy).toHaveBeenCalledTimes(4);
-	});
+	}, new FlatRoot());
 });
 
 test("is dynamic (unsubscribe invisible dependencies)", () => {
@@ -80,7 +80,7 @@ test("is dynamic (unsubscribe invisible dependencies)", () => {
 		a.set(false);
 		expect(d.get()).toBe("c!!");
 		expect(dSpy).toHaveBeenCalledTimes(4);
-	});
+	}, new FlatRoot());
 });
 
 test("diamond graph runs once", () => {
@@ -99,7 +99,7 @@ test("diamond graph runs once", () => {
 
 		expect(d.get()).toBe("a!a!");
 		expect(spy).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 test("repeating computeds runs once", () => {
@@ -122,7 +122,7 @@ test("repeating computeds runs once", () => {
 		expect(spyB).toHaveBeenCalledTimes(2);
 		expect(spyC).toHaveBeenCalledTimes(2);
 		expect(spyD).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 //   A
@@ -152,7 +152,7 @@ test("branching (updates and runs once)", () => {
 		expect(e.get()).toBe("bb");
 		expect(f.get()).toBe("bb");
 		expect(dSpy).toBeCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 test("track dependencies optimally", () => {
@@ -190,5 +190,5 @@ test("track dependencies optimally", () => {
 		b1.set("b!"); // updating B shouldn't affect A
 		a2.get();
 		expect(a2Spy).toBeCalledTimes(1);
-	});
+	}, new FlatRoot());
 });

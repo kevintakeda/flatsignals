@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import {
 	computed,
 	effect,
+	FlatRoot,
 	FlatSignal,
 	link,
 	runWithRoot,
@@ -104,6 +105,6 @@ test("link works across roots", () => {
 			m.set(30);
 			expect(m.get()).toBe(30);
 			expect(innerSpy).toHaveBeenCalledTimes(3);
-		});
-	});
+		}, new FlatRoot());
+	}, new FlatRoot());
 });

@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { batch, computed, effect, runWithRoot, signal } from "../src/index.js";
+import { batch, computed, effect, FlatRoot, runWithRoot, signal } from "../src/index.js";
 
 test("nested batch becomes part of outer flush", () => {
 	runWithRoot(() => {
@@ -23,7 +23,7 @@ test("nested batch becomes part of outer flush", () => {
 		expect(fn).toHaveBeenCalledTimes(1);
 		// after outer flush: a = 4
 		expect(a.get()).toBe(4);
-	});
+	}, new FlatRoot());
 });
 
 test("effects", () => {
@@ -46,7 +46,7 @@ test("effects", () => {
 
 		expect(cSpy).toHaveBeenCalledTimes(3);
 		expect(cSpy).toHaveBeenCalledTimes(3);
-	});
+	}, new FlatRoot());
 });
 
 test("unsubscribe invisible dependencies", () => {
@@ -77,7 +77,7 @@ test("unsubscribe invisible dependencies", () => {
 		b.set("b!!!");
 
 		expect(fSpy).toHaveBeenCalledTimes(4);
-	});
+	}, new FlatRoot());
 });
 
 // TODO: unsopported for now
@@ -109,7 +109,7 @@ test("unsubscribe invisible dependencies", () => {
 // 		expect(spyZ).toHaveBeenCalledTimes(2);
 
 // 		expect(a.get()).toBe(8);
-// 	});
+// 	}, new FlatRoot());
 // });
 
 test("double dispose is no-op", () => {
@@ -139,7 +139,7 @@ test("dispose effects", () => {
 		a.set("a!!!!");
 		expect(bSpy).toHaveBeenCalledTimes(0);
 		expect(bSpy).toHaveBeenCalledTimes(0);
-	});
+	}, new FlatRoot());
 });
 
 test("effect with conditional dependencies", () => {
@@ -165,7 +165,7 @@ test("effect with conditional dependencies", () => {
 		s1.set(true);
 
 		expect(result.val).toBe(1);
-	});
+	}, new FlatRoot());
 });
 
 test("effect with deep dependencies", () => {
@@ -184,7 +184,7 @@ test("effect with deep dependencies", () => {
 		a.set(4);
 
 		expect(spyE).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 test("dispose calls cleanup function", () => {
@@ -199,7 +199,7 @@ test("dispose calls cleanup function", () => {
 		expect(cleanup).toHaveBeenCalledTimes(0);
 		dispose();
 		expect(cleanup).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("dispose stops effect from re-running on signal changes", () => {
@@ -215,7 +215,7 @@ test("dispose stops effect from re-running on signal changes", () => {
 		a.set(2);
 		a.set(3);
 		expect(spy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("effects using sources from top to bottom", () => {
@@ -248,5 +248,5 @@ test("effects using sources from top to bottom", () => {
 		x.set("x!!");
 
 		expect(count).toBeCalledTimes(3);
-	});
+	}, new FlatRoot());
 });

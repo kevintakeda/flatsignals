@@ -2,7 +2,7 @@
 /** biome-ignore-all lint/suspicious/noAssignInExpressions: conciseness */
 
 import { expect, it, vi } from "vitest";
-import { computed, effect, runWithRoot, signal } from "../src/index.js";
+import { computed, effect, FlatRoot, runWithRoot, signal } from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
 	runWithRoot(() => {
@@ -23,7 +23,7 @@ it("should run computeds once for multiple dep changes", () => {
 		b.set("bb");
 		c.get();
 		expect(compute).toHaveBeenCalledOnce();
-	});
+	}, new FlatRoot());
 });
 
 it("should drop A->B->A updates", async () => {
@@ -51,7 +51,7 @@ it("should drop A->B->A updates", async () => {
 		a.set(4);
 		d.get();
 		expect(compute).toHaveBeenCalledOnce();
-	});
+	}, new FlatRoot());
 });
 
 it("should only update every signal once (diamond graph)", () => {
@@ -76,7 +76,7 @@ it("should only update every signal once (diamond graph)", () => {
 		a.set("aa");
 		expect(d.get()).to.equal("aa aa");
 		expect(spy).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 it("should only update every signal once (diamond graph + tail)", () => {
@@ -104,7 +104,7 @@ it("should only update every signal once (diamond graph + tail)", () => {
 		a.set("aa");
 		expect(e.get()).to.equal("aa aa");
 		expect(spy).toHaveBeenCalledTimes(2);
-	});
+	}, new FlatRoot());
 });
 
 // this library can't bail out.
@@ -127,7 +127,7 @@ it("should only update every signal once (diamond graph + tail)", () => {
 //     a.set("aa");
 //     expect(c.get()).to.equal("foo");
 //     expect(spy).toHaveBeenCalledOnce();
-//   })
+//   }, new FlatRoot())
 // });
 
 it("should only update every signal once (jagged diamond graph + tails)", () => {
@@ -197,7 +197,7 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
 		// expect(eSpy).to.have.been.calledBefore(fSpy);
 		// left to right
 		// expect(fSpy).to.have.been.calledBefore(gSpy);
-	});
+	}, new FlatRoot());
 });
 
 it("should only subscribe to signals listened to", () => {
@@ -217,7 +217,7 @@ it("should only subscribe to signals listened to", () => {
 		a.set("aa");
 		expect(b.get()).to.equal("aa");
 		expect(spy).not.toHaveBeenCalled();
-	});
+	}, new FlatRoot());
 });
 
 it("should only subscribe to signals listened to", () => {

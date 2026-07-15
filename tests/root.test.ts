@@ -80,11 +80,11 @@ test("runWithRoot", () => {
 						inner();
 					});
 					updateInner = () => $.set($.get() + $.get());
-				});
+				}, new FlatRoot());
 			} else {
 				runWithRoot(() => {
 					spyACalled();
-				});
+				}, new FlatRoot());
 			}
 		});
 
@@ -113,5 +113,5 @@ test("runWithRoot", () => {
 
 		expect(spyEffectCalled).toHaveBeenCalledTimes(3);
 		expect(inner).toHaveBeenCalledTimes(3);
-	});
+	}, new FlatRoot());
 });

@@ -1,6 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: guaranteed */
 
 let BATCHING = false,
+	UNTRACK = false,
 	ROOT: FlatRoot | null = null,
 	COMPUTED: FlatCompute | null = null,
 	ROOT_QUEUE: Array<FlatRoot> | null = null,
@@ -80,7 +81,7 @@ export class FlatSignal<T = undefined> {
 	}
 
 	get(): T {
-		if (COMPUTED && COMPUTED.root === this.#root) {
+		if (COMPUTED && COMPUTED.root === this.#root && !UNTRACK) {
 			COMPUTED._s |= this.#id;
 		}
 		return this.#val as T;
@@ -142,11 +143,11 @@ export class FlatCompute<T = unknown> {
 			if (this._e) (this.#val as (() => void) | undefined)?.();
 			COMPUTED = this as FlatCompute<unknown>;
 			this._s = 0;
-			this.#val = this.#fn!();
+			this.#val = runWithRoot(() => this.#fn!(), this.#root);
 			this._x = false;
 			COMPUTED = prevCurrent;
 		}
-		if (prevCurrent) {
+		if (prevCurrent && !UNTRACK) {
 			prevCurrent._s |= this._s;
 		}
 		return this.#val!;
@@ -182,9 +183,9 @@ export function batch(fn: () => void) {
 	BATCHING = false;
 }
 
-export function runWithRoot<T>(fn: () => T, root?: FlatRoot): T {
+export function runWithRoot<T>(fn: () => T, root: FlatRoot): T {
 	const prevRoot = ROOT;
-	ROOT = root ?? new FlatRoot();
+	ROOT = root;
 	const result = fn();
 	ROOT = prevRoot;
 	return result;
@@ -199,10 +200,10 @@ export function scoped<T>(fn: () => T, scope: Array<FlatRoot>): T {
 }
 
 export function untrack<T>(fn: () => T): T {
-	const prev = COMPUTED;
-	COMPUTED = null;
+	const prev = UNTRACK;
+	UNTRACK = true;
 	const result = fn();
-	COMPUTED = prev;
+	UNTRACK = prev;
 	return result;
 }
 

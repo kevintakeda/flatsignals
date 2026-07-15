@@ -29,7 +29,7 @@ test("batches signal sets and defers effects until batch completes", () => {
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(a.get()).toBe(10);
 		expect(b.get()).toBe(20);
-	});
+	}, new FlatRoot());
 });
 
 test("nested batch becomes part of outer flush", () => {
@@ -52,7 +52,7 @@ test("nested batch becomes part of outer flush", () => {
 
 		expect(fn).toHaveBeenCalledTimes(1);
 		expect(a.get()).toBe(4);
-	});
+	}, new FlatRoot());
 });
 
 test("empty batch does not trigger effects", () => {
@@ -68,7 +68,7 @@ test("empty batch does not trigger effects", () => {
 
 		expect(spy).toHaveBeenCalledTimes(0);
 		expect(a.get()).toBe(0);
-	});
+	}, new FlatRoot());
 });
 
 test("batch with multiple signals on same root triggers effect once", () => {
@@ -89,7 +89,7 @@ test("batch with multiple signals on same root triggers effect once", () => {
 		});
 
 		expect(spy).toHaveBeenCalledTimes(1);
-	});
+	}, new FlatRoot());
 });
 
 test("computed reads inside batch return cached values (lazy until flush)", () => {
@@ -110,7 +110,7 @@ test("computed reads inside batch return cached values (lazy until flush)", () =
 
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(b.get()).toBe(6);
-	});
+	}, new FlatRoot());
 });
 
 test("signal sets to same value inside batch do not queue flush", () => {
@@ -127,7 +127,7 @@ test("signal sets to same value inside batch do not queue flush", () => {
 		});
 
 		expect(spy).toHaveBeenCalledTimes(0);
-	});
+	}, new FlatRoot());
 });
 
 test("batch with signals on different roots flushes each root", () => {
@@ -201,5 +201,5 @@ test("batch with computed that reads signals triggers effect once", () => {
 
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(sum.get()).toBe(30);
-	});
+	}, new FlatRoot());
 });

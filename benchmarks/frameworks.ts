@@ -47,6 +47,7 @@ import {
 } from "alien-signals/esm";
 import { afterEach, bench } from "vitest";
 import {
+	FlatRoot,
 	computed as flatComputed,
 	effect as flatEffect,
 	signal as flatSignal,
@@ -143,7 +144,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
 	runSync: (fn) => {
 		fn(); // by default is sync;
 	},
-	root: (fn) => runWithRoot(fn),
+	root: (fn) => runWithRoot(fn, new FlatRoot()),
 };
 
 export const ReactivelyFramework: FrameworkBenchmarkApi = {

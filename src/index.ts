@@ -167,7 +167,7 @@ export class FlatCompute<T = unknown> {
 		this._s = 0;
 		this._x = false;
 		this._d = true;
-		if (!detach) this.#root._d(this._i);
+		if (detach) this.#root._d(this._i);
 	}
 }
 
@@ -234,5 +234,5 @@ export function computed<T>(val: () => T): FlatCompute<T> {
 // biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
 export function effect(fn: () => void | (() => void)): () => void {
 	const sig = new FlatCompute(fn, undefined, true);
-	return sig.dispose.bind(sig);
+	return sig.dispose.bind(sig, true);
 }

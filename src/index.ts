@@ -211,16 +211,6 @@ export function untrack<T>(fn: () => T): T {
 	return result;
 }
 
-export function link<T>(reader: FlatCompute<T> | FlatSignal<T>) {
-	const s = signal(reader.peek);
-	runWithRoot(() => {
-		effect(() => {
-			s.set(reader.get());
-		});
-	}, reader.root);
-	return s;
-}
-
 export function getRoot() {
 	return ROOT;
 }

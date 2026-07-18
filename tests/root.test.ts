@@ -60,6 +60,36 @@ test("flush on empty root is no-op", () => {
 	expect(() => root.flush()).not.toThrow();
 });
 
+test("dispose detaches computed from root, including the last one", () => {
+	const root = new FlatRoot();
+	let a!: FlatCompute<number>;
+	let b!: FlatCompute<number>;
+	let c!: FlatCompute<number>;
+	runWithRoot(() => {
+		a = computed(() => 1);
+		b = computed(() => 2);
+		c = computed(() => 3);
+	}, root);
+
+	expect(root._c.length).toBe(3);
+
+	// dispose the last-registered computed: must actually leave the array
+	c.dispose();
+	expect(root._c.length).toBe(2);
+	expect(root._c.includes(c)).toBe(false);
+
+	// dispose one in the middle: swap-pop keeps the array compact
+	a.dispose();
+	expect(root._c.length).toBe(1);
+	expect(root._c.includes(a)).toBe(false);
+	expect(root._c[0]).toBe(b);
+	expect(b._i).toBe(0);
+
+	// dispose the only remaining one
+	b.dispose();
+	expect(root._c.length).toBe(0);
+});
+
 test("runWithRoot", () => {
 	const spyEffectCalled = vi.fn();
 	const spyBCalled = vi.fn();

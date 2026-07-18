@@ -1,6 +1,6 @@
 {
   "name": "flatsignals",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "FlatSignals is an extremely fast reactivity library (~0.6kb)",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",

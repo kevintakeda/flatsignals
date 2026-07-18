@@ -39,10 +39,13 @@ export class FlatRoot {
 
 	/** @internal Destroy computed */
 	_d(idx: number) {
-		const last = this._c.pop();
+		const items = this._c;
+		const last = items.pop();
 		if (!last) return;
-		this._c[idx] = last;
-		last._i = idx;
+		if (idx < items.length) {
+			items[idx] = last;
+			last._i = idx;
+		}
 	}
 
 	/** @internal queue */

@@ -20,11 +20,11 @@ export class FlatRoot {
 	}
 
 	dispose() {
-		this._c.forEach((el) => {
-			el.dispose(true);
-		});
+		const items = this._c;
 		this._c = [];
-		this._i = 0;
+		items.forEach((el) => {
+			el.dispose(false);
+		});
 	}
 
 	/** @internal Add source */
@@ -39,11 +39,10 @@ export class FlatRoot {
 
 	/** @internal Destroy computed */
 	_d(idx: number) {
-		const last = this._c.pop()!;
-		if (idx !== this._c.length) {
-			this._c[idx] = last;
-			last._i = idx;
-		}
+		const last = this._c.pop();
+		if (!last) return;
+		this._c[idx] = last;
+		last._i = idx;
 	}
 
 	/** @internal queue */
@@ -58,13 +57,15 @@ export class FlatRoot {
 
 	flush() {
 		if (!this.#batch) return;
+		const currentBatch = this.#batch;
+		this.#batch = 0;
+
 		for (const item of this._c) {
-			if (item._s & this.#batch) {
+			if (item._s & currentBatch) {
 				item._x = true;
 				if (item._e) item.get();
 			}
 		}
-		this.#batch = 0;
 	}
 }
 

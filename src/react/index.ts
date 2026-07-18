@@ -2,7 +2,6 @@ import {
 	useCallback,
 	useEffect,
 	useEffectEvent,
-	useMemo,
 	useRef,
 	useState,
 	useSyncExternalStore,
@@ -67,8 +66,8 @@ export function useSyncFlatSelector<T, R>(
 				),
 			[signal, selector, isEqual],
 		),
-		() => selector(signal.get()),
-		() => selector(signal.peek),
+		() => lastSelectedRef.current,
+		() => lastSelectedRef.current,
 	);
 }
 
@@ -93,12 +92,13 @@ export function useSyncFlatSignal<T>(signal: FlatSignal<T>) {
 	return [reader, writer] as const;
 }
 
-export function useFlatScope<T>(callback: () => T, scope?: FlatRoot): T {
-	return useMemo(() => runWithRoot(callback, scope), [callback, scope]);
-}
-
 export function useFlatRoot(autoFlush?: boolean) {
 	const [root] = useState(() => new FlatRoot(autoFlush));
+
+	useEffect(() => {
+		return () => root.dispose();
+	}, [root]);
+
 	return root;
 }
 

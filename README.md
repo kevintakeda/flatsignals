@@ -1,6 +1,6 @@
 # FlatSignals
 
-**FlatSignals** is an ultra-fast reactivity library (~0.6 KB) optimized for **high-frequency, few-to-many updates**.
+**FlatSignals** is an ultra-fast experimental reactivity library (~0.6 KB) optimized for **high-frequency, few-to-many updates**.
 
 ## 🚀 Why it’s fast:
 
@@ -139,7 +139,7 @@ function ReadDouble() {
 **Best suited for:**
 
 - High frequency updates that bypasses React's render cycle (e.g., animations, dragging).
-- Granular state tracking to prevent unnecessary parent-to-child re-render cascades.
+- Direct state tracking to prevent unnecessary parent-to-child diffing cascades.
 - Dynamic dependency graphs that require evaluation every frame (e.g., canvas rendering, node-based editors).
 
 **Limitations:**

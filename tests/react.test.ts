@@ -13,7 +13,6 @@ import {
 	useFlatComputed,
 	useFlatEffect,
 	useFlatRoot,
-	useFlatScope,
 	useFlatSignal,
 	useSyncFlatReader,
 	useSyncFlatSelector,
@@ -188,63 +187,6 @@ describe("useSyncFlatSignal", () => {
 			result.current[1]((prev) => prev + 5);
 		});
 		expect(result.current[0]).toBe(5);
-	});
-});
-
-describe("useFlatScope", () => {
-	test("runs callback and returns result", () => {
-		const { result } = renderHook(() => useFlatScope(() => 42));
-		expect(result.current).toBe(42);
-	});
-
-	test("evaluates callback in runWithRoot context", () => {
-		const fn = vi.fn(() => signal(1));
-		renderHook(() => useFlatScope(fn));
-		expect(fn).toHaveBeenCalledTimes(1);
-	});
-
-	test("uses provided scope", () => {
-		const root = new FlatRoot();
-		let capturedRoot: FlatRoot | undefined;
-		renderHook(() =>
-			useFlatScope(() => {
-				capturedRoot = signal(1).root;
-			}, root),
-		);
-		expect(capturedRoot).toBe(root);
-	});
-
-	test("result is memoized when callback reference is stable", () => {
-		const fn = () => 42;
-		const { result, rerender } = renderHook(
-			(cb: () => number) => useFlatScope(cb),
-			{ initialProps: fn },
-		);
-		const first = result.current;
-		rerender(fn);
-		expect(result.current).toBe(first);
-	});
-
-	test("re-evaluates when callback changes", () => {
-		const { result, rerender } = renderHook(
-			({ cb }: { cb: () => number }) => useFlatScope(cb),
-			{ initialProps: { cb: () => 1 } },
-		);
-		expect(result.current).toBe(1);
-		rerender({ cb: () => 2 });
-		expect(result.current).toBe(2);
-	});
-
-	test("re-evaluates when scope changes", () => {
-		const rootA = new FlatRoot();
-		const rootB = new FlatRoot();
-		const { result, rerender } = renderHook(
-			({ r }: { r: FlatRoot }) => useFlatScope(() => r, r),
-			{ initialProps: { r: rootA } },
-		);
-		expect(result.current).toBe(rootA);
-		rerender({ r: rootB });
-		expect(result.current).toBe(rootB);
 	});
 });
 

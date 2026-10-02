@@ -74,6 +74,22 @@ const double = computed(() => counter.get() * 2);
 const log = effect(() => console.log(double.get()));
 ```
 
+## Nested effects
+
+Every computation is a scope. An effect created inside another effect's body is owned by it: when the outer effect re-runs, its inner effects are cleaned up and recreated.
+
+```ts
+effect(() => {
+  // re-created on every re-run of the outer effect
+  effect(() => console.log(signalA.get()));
+});
+```
+
+- Inner effects run exactly once per outer effect run.
+- A signal read inside an inner effect never re-runs the outer effect.
+- An inner effect only reacts to signals in its own root.
+- Disposing the outer effect (or its root) disposes everything it created, including computations from other roots.
+
 ## With React
 
 ### Bypass React's render cycle

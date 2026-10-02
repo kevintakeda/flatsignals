@@ -54,12 +54,12 @@ import {
 	runWithRoot,
 } from "../src/index.js";
 
-export interface FrameworkSignal<T = any> {
+export interface FrameworkSignal<T = unknown> {
 	get(): T;
 	set(v: T): void;
 	update(v: (p: T) => T): void;
 }
-export interface FrameworkComputed<T = any> {
+export interface FrameworkComputed<T = unknown> {
 	get(): T;
 }
 export interface FrameworkBenchmarkApi {
@@ -250,7 +250,7 @@ export const AlienSignalsFramework: FrameworkBenchmarkApi = {
 		return out;
 	},
 	cleanup: () => {
-		alienScope!();
+		alienScope?.();
 		alienScope = null;
 	},
 };
@@ -258,10 +258,10 @@ export const AlienSignalsFramework: FrameworkBenchmarkApi = {
 const vueScheduled = [] as ReactiveEffect[];
 function vueFlushEffects() {
 	while (vueScheduled.length) {
-		vueScheduled.pop()!.run();
+		vueScheduled.pop()?.run();
 	}
 }
-let vueScope: any = null;
+let vueScope: ReturnType<typeof vEffectScope> | null = null;
 export const VueReactivityFramework: FrameworkBenchmarkApi = {
 	name: "@vue/reactivity",
 	signal: (val) => {
@@ -291,10 +291,11 @@ export const VueReactivityFramework: FrameworkBenchmarkApi = {
 	},
 	root: (fn) => {
 		vueScope = vEffectScope();
-		return vueScope.run(fn)!;
+		const out = vueScope.run(fn);
+		return out as T;
 	},
 	cleanup: () => {
-		vueScope!.stop();
+		vueScope?.stop();
 		vueScope = null;
 	},
 };
@@ -371,7 +372,7 @@ export const angularFramework: FrameworkBenchmarkApi = {
 			res = angularUntracked(fn);
 		}, injectorObj);
 		scheduler.flush();
-		return res!;
+		return res as T;
 	},
 	cleanup: () => {
 		injectorObj.injector.destroy();
@@ -382,9 +383,9 @@ export const angularFramework: FrameworkBenchmarkApi = {
 export const SolidjsSignals: FrameworkBenchmarkApi = {
 	name: "@solidjs/signals",
 	signal: (val) => {
-		const [read, write] = solidSignal(val as any);
+		const [read, write] = solidSignal(val);
 		return {
-			set: (v) => write(v as any),
+			set: (v) => write(v),
 			get: () => read(),
 			update: (u) => write(u),
 		};

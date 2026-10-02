@@ -2,7 +2,13 @@
 /** biome-ignore-all lint/suspicious/noAssignInExpressions: conciseness */
 
 import { expect, it, vi } from "vitest";
-import { computed, effect, FlatRoot, runWithRoot, signal } from "../src/index.js";
+import {
+	computed,
+	effect,
+	FlatRoot,
+	runWithRoot,
+	signal,
+} from "../src/index.js";
 
 it("should run computeds once for multiple dep changes", () => {
 	runWithRoot(() => {
@@ -40,7 +46,7 @@ it("should drop A->B->A updates", async () => {
 		const b = computed(() => a.get() - 1);
 		const c = computed(() => a.get() + b.get());
 
-		const compute = vi.fn(() => "d: " + c.get());
+		const compute = vi.fn(() => `d: ${c.get()}`);
 		const d = computed(compute);
 
 		// Trigger read
@@ -67,7 +73,7 @@ it("should only update every signal once (diamond graph)", () => {
 		const b = computed(() => a.get());
 		const c = computed(() => a.get());
 
-		const spy = vi.fn(() => b.get() + " " + c.get());
+		const spy = vi.fn(() => `${b.get()} ${c.get()}`);
 		const d = computed(spy);
 
 		expect(d.get()).to.equal("a a");
@@ -93,7 +99,7 @@ it("should only update every signal once (diamond graph + tail)", () => {
 		const b = computed(() => a.get());
 		const c = computed(() => a.get());
 
-		const d = computed(() => b.get() + " " + c.get());
+		const d = computed(() => `${b.get()} ${c.get()}`);
 
 		const spy = vi.fn(() => d.get());
 		const e = computed(spy);
@@ -149,7 +155,7 @@ it("should only update every signal once (jagged diamond graph + tails)", () => 
 
 		const d = computed(() => c.get());
 
-		const eSpy = vi.fn(() => b.get() + " " + d.get());
+		const eSpy = vi.fn(() => `${b.get()} ${d.get()}`);
 		const e = computed(eSpy);
 
 		const fSpy = vi.fn(() => e.get());
@@ -254,7 +260,7 @@ it("should only subscribe to signals listened to", () => {
 		expect(spyB).not.toHaveBeenCalled();
 		expect(spyC).not.toHaveBeenCalled();
 		expect(d.get()).to.equal("aa");
-	});
+	}, new FlatRoot());
 });
 
 it("should ensure subs update even if one dep unmarks it", () => {
@@ -274,7 +280,7 @@ it("should ensure subs update even if one dep unmarks it", () => {
 			a.get();
 			return "c";
 		});
-		const spy = vi.fn(() => b.get() + " " + c.get());
+		const spy = vi.fn(() => `${b.get()} ${c.get()}`);
 		const d = computed(spy);
 		expect(d.get()).to.equal("a c");
 		spy.mockClear();
@@ -282,7 +288,7 @@ it("should ensure subs update even if one dep unmarks it", () => {
 		a.set("aa");
 		d.get();
 		expect(spy).toHaveReturnedWith("aa c");
-	});
+	}, new FlatRoot());
 });
 
 it("should ensure subs update even if two deps unmark it", () => {
@@ -305,7 +311,7 @@ it("should ensure subs update even if two deps unmark it", () => {
 			a.get();
 			return "d";
 		});
-		const spy = vi.fn(() => b.get() + " " + c.get() + " " + d.get());
+		const spy = vi.fn(() => `${b.get()} ${c.get()} ${d.get()}`);
 		const e = computed(spy);
 		expect(e.get()).to.equal("a c d");
 		spy.mockClear();
@@ -313,5 +319,5 @@ it("should ensure subs update even if two deps unmark it", () => {
 		a.set("aa");
 		e.get();
 		expect(spy).toHaveReturnedWith("aa c d");
-	});
+	}, new FlatRoot());
 });

@@ -1,5 +1,12 @@
 import { expect, test, vi } from "vitest";
-import { batch, computed, effect, FlatRoot, runWithRoot, signal } from "../src/index.js";
+import {
+	batch,
+	computed,
+	effect,
+	FlatRoot,
+	runWithRoot,
+	signal,
+} from "../src/index.js";
 
 test("nested batch becomes part of outer flush", () => {
 	runWithRoot(() => {
@@ -80,37 +87,294 @@ test("unsubscribe invisible dependencies", () => {
 	}, new FlatRoot());
 });
 
-// TODO: unsopported for now
-// test("nested effects run once", () => {
-// 	runWithRoot(() => {
-// 		const a = signal(2);
-// 		const spyX = vi.fn(() => a.get());
-// 		const spyY = vi.fn(() => a.get());
-// 		const spyZ = vi.fn(() => a.get());
+test("nested effects own other roots and computeds", () => {
+	const outerRoot = new FlatRoot();
+	const innerRoot = new FlatRoot();
+	const spy = vi.fn();
+	let poke!: () => void;
 
-// 		effect(() => {
-// 			spyX();
-// 			effect(() => {
-// 				spyY();
-// 				effect(() => {
-// 					spyZ();
-// 				});
-// 			});
-// 		});
+	runWithRoot(() => {
+		const a = signal(0);
+		const dispose = effect(() => {
+			a.get();
+			// created in another root, still owned by this effect
+			runWithRoot(() => {
+				const b = signal(0);
+				effect(() => {
+					b.get();
+					spy();
+				});
+				poke = () => b.set(b.get() + 1);
+			}, innerRoot);
+			// created in the same root, owned by this effect
+			const c = computed(() => a.get() + 1);
+			c.get();
+		});
 
-// 		expect(spyX).toHaveBeenCalledTimes(1);
-// 		expect(spyY).toHaveBeenCalledTimes(1);
-// 		expect(spyZ).toHaveBeenCalledTimes(1);
+		expect(spy).toHaveBeenCalledTimes(1);
+		poke();
+		expect(spy).toHaveBeenCalledTimes(2);
 
-// 		a.set(4);
+		// parent re-run tears the old inner-root effect down, then recreates it
+		a.set(1);
+		expect(spy).toHaveBeenCalledTimes(3);
+		expect(innerRoot._c.length).toBe(1);
+		poke();
+		expect(spy).toHaveBeenCalledTimes(4);
 
-// 		expect(spyX).toHaveBeenCalledTimes(2);
-// 		expect(spyY).toHaveBeenCalledTimes(2);
-// 		expect(spyZ).toHaveBeenCalledTimes(2);
+		dispose();
+		expect(innerRoot._c.length).toBe(0);
+		expect(outerRoot._c.length).toBe(0);
+		poke();
+		expect(spy).toHaveBeenCalledTimes(4);
+	}, outerRoot);
+});
 
-// 		expect(a.get()).toBe(8);
-// 	}, new FlatRoot());
-// });
+test("roots created inside an effect are owned by it", () => {
+	const outerRoot = new FlatRoot();
+	const roots: FlatRoot[] = [];
+	const spy = vi.fn();
+
+	runWithRoot(() => {
+		const a = signal(0);
+		const dispose = effect(() => {
+			a.get();
+			const root = new FlatRoot();
+			roots.push(root);
+			runWithRoot(() => {
+				effect(() => {
+					spy();
+				});
+			}, root);
+		});
+
+		expect(roots).toHaveLength(1);
+		expect(roots[0]._c.length).toBe(1);
+		expect(spy).toHaveBeenCalledTimes(1);
+
+		// re-run disposes the root the previous run created
+		a.set(1);
+		expect(roots).toHaveLength(2);
+		expect(roots[0]._c.length).toBe(0);
+		expect(roots[1]._c.length).toBe(1);
+		expect(spy).toHaveBeenCalledTimes(2);
+
+		dispose();
+		expect(roots[1]._c.length).toBe(0);
+		expect(spy).toHaveBeenCalledTimes(2);
+	}, outerRoot);
+});
+
+test("inner effects track the parent's root, not other roots", () => {
+	const outerRoot = new FlatRoot();
+	const otherRoot = new FlatRoot();
+	const spy = vi.fn();
+	let poke!: () => void;
+
+	runWithRoot(() => {
+		const a = signal(0);
+		effect(() => {
+			a.get();
+			effect(() => {
+				spy();
+			});
+		});
+	}, outerRoot);
+
+	runWithRoot(() => {
+		const b = signal(0);
+		effect(() => {
+			b.get();
+			spy();
+		});
+		poke = () => b.set(b.get() + 1);
+	}, otherRoot);
+
+	expect(spy).toHaveBeenCalledTimes(2);
+	// only the other-root effect reacts: the inner one reads nothing from it
+	poke();
+	expect(spy).toHaveBeenCalledTimes(3);
+});
+
+test("inner effects join a root switched inside the outer body", () => {
+	const outerRoot = new FlatRoot();
+	const otherRoot = new FlatRoot();
+	const spy = vi.fn();
+
+	runWithRoot(() => {
+		const a = signal(0);
+		effect(() => {
+			a.get();
+			// the rest of this body runs against otherRoot, so the inner
+			// effect lands there instead of the outer effect's root
+			runWithRoot(() => {
+				effect(() => {
+					spy();
+				});
+			}, otherRoot);
+		});
+	}, outerRoot);
+
+	expect(spy).toHaveBeenCalledTimes(1);
+	expect(otherRoot._c.length).toBe(1);
+	otherRoot.dispose();
+	expect(otherRoot._c.length).toBe(0);
+	expect(spy).toHaveBeenCalledTimes(1);
+});
+
+test("nested effects run once", () => {
+	runWithRoot(() => {
+		const a = signal(2);
+		const spyX = vi.fn(() => a.get());
+		const spyY = vi.fn(() => a.get());
+		const spyZ = vi.fn(() => a.get());
+
+		effect(() => {
+			spyX();
+			effect(() => {
+				spyY();
+				effect(() => {
+					spyZ();
+				});
+			});
+		});
+
+		expect(spyX).toHaveBeenCalledTimes(1);
+		expect(spyY).toHaveBeenCalledTimes(1);
+		expect(spyZ).toHaveBeenCalledTimes(1);
+
+		a.set(4);
+
+		expect(spyX).toHaveBeenCalledTimes(2);
+		expect(spyY).toHaveBeenCalledTimes(2);
+		expect(spyZ).toHaveBeenCalledTimes(2);
+	}, new FlatRoot());
+});
+
+test("nested effects do not leak subscriptions to parent", () => {
+	const root = new FlatRoot();
+	runWithRoot(() => {
+		const a = signal(0);
+		const b = signal(0);
+		const parent = vi.fn(() => {
+			a.get();
+			effect(() => void b.get());
+		});
+
+		effect(parent);
+		expect(parent).toHaveBeenCalledTimes(1);
+
+		b.set(1);
+		expect(parent).toHaveBeenCalledTimes(1);
+
+		a.set(1);
+		expect(parent).toHaveBeenCalledTimes(2);
+	}, root);
+});
+
+test("nested effects are disposed with parent", () => {
+	const root = new FlatRoot();
+	const cleanup = vi.fn();
+
+	runWithRoot(() => {
+		const a = signal(0);
+		const b = signal(0);
+		const spy = vi.fn(() => void b.get());
+		const dispose = effect(() => {
+			a.get();
+			effect(() => spy());
+			return cleanup;
+		});
+
+		a.set(1);
+		expect(spy).toHaveBeenCalledTimes(2);
+		expect(cleanup).toHaveBeenCalledTimes(1);
+		expect(root._c.length).toBe(2);
+
+		// parent re-run: old child disposed, new child created
+		a.set(2);
+		expect(cleanup).toHaveBeenCalledTimes(2);
+		expect(spy).toHaveBeenCalledTimes(3);
+		expect(root._c.length).toBe(2);
+
+		// disposing parent disposes children
+		dispose();
+		expect(cleanup).toHaveBeenCalledTimes(3);
+		expect(root._c.length).toBe(0);
+
+		b.set(1);
+		a.set(3);
+		expect(spy).toHaveBeenCalledTimes(3);
+	}, root);
+});
+
+test("nested effects run once per update inside a batch", () => {
+	runWithRoot(() => {
+		const a = signal(0);
+		const parent = vi.fn(() => {
+			a.get();
+			effect(() => void a.get());
+		});
+
+		effect(parent);
+		expect(parent).toHaveBeenCalledTimes(1);
+
+		batch(() => {
+			a.set(1);
+			a.set(2);
+			a.set(3);
+		});
+		expect(parent).toHaveBeenCalledTimes(2);
+	}, new FlatRoot());
+});
+
+test("nested effects run once when parent writes a signal", () => {
+	runWithRoot(() => {
+		const a = signal(0);
+		const mirror = signal(0);
+		const parent = vi.fn(() => {
+			mirror.set(a.get());
+			effect(() => void mirror.get());
+		});
+		const child = vi.fn(() => void mirror.get());
+
+		effect(() => {
+			parent();
+			child();
+		});
+
+		expect(parent).toHaveBeenCalledTimes(1);
+		expect(child).toHaveBeenCalledTimes(1);
+
+		a.set(1);
+		expect(parent).toHaveBeenCalledTimes(2);
+		expect(child).toHaveBeenCalledTimes(2);
+	}, new FlatRoot());
+});
+
+test("effect cleanup is a type-level contract", () => {
+	// the signature accepts void or a cleanup fn, nothing else; there is no
+	// runtime guard, so this must stay a compile error
+	// @ts-expect-error an effect may not return a value
+	// biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
+	const invalid: () => void | (() => void) = () => 1;
+
+	expect(invalid).toBeTypeOf("function");
+
+	runWithRoot(() => {
+		const a = signal(1);
+		const cleanup = vi.fn();
+		const stop = effect(() => {
+			a.get();
+			return cleanup;
+		});
+		expect(cleanup).toHaveBeenCalledTimes(0);
+		a.set(2);
+		expect(cleanup).toHaveBeenCalledTimes(1);
+		stop();
+		expect(cleanup).toHaveBeenCalledTimes(2);
+	}, new FlatRoot());
+});
 
 test("double dispose is no-op", () => {
 	const a = signal("a");

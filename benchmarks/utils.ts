@@ -44,7 +44,6 @@ export function packedBench(
 			}
 			api.runSync(() => void 0);
 			const rnd = mulberry32(123456);
-			const j = 0;
 			const atleast = Math.ceil(effects * densityFactor);
 			return () => {
 				countEff = 0;
@@ -129,7 +128,7 @@ export function batchBench(
 				}
 			}
 
-			const uniqueSets = new Set<FrameworkSignal<any>>();
+			const uniqueSets = new Set<FrameworkSignal>();
 			return () => {
 				count = 0;
 				uniqueSets.clear();

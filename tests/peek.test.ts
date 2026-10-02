@@ -1,11 +1,18 @@
 import { expect, test, vi } from "vitest";
-import { computed, effect, FlatRoot, runWithRoot, signal, untrack } from "../src/index.js";
+import {
+	computed,
+	effect,
+	FlatRoot,
+	runWithRoot,
+	signal,
+	untrack,
+} from "../src/index.js";
 
 test("peek inside memos", () => {
 	runWithRoot(() => {
 		const memoSpy = vi.fn();
 		const x = signal("a");
-		const a = computed(() => x.get() + "!");
+		const a = computed(() => `${x.get()}!`);
 		const b = computed(() => {
 			memoSpy();
 			return a.peek;

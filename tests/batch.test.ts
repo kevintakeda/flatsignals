@@ -14,7 +14,10 @@ test("batches signal sets and defers effects until batch completes", () => {
 	runWithRoot(() => {
 		const a = signal(1);
 		const b = signal(2);
-		const spy = vi.fn(() => void (a.get(), b.get()));
+		const spy = vi.fn(() => {
+			a.get();
+			b.get();
+		});
 		effect(spy);
 
 		expect(spy).toHaveBeenCalledTimes(1);
@@ -76,7 +79,11 @@ test("batch with multiple signals on same root triggers effect once", () => {
 		const a = signal(0);
 		const b = signal(0);
 		const c = signal(0);
-		const spy = vi.fn(() => void (a.get(), b.get(), c.get()));
+		const spy = vi.fn(() => {
+			a.get();
+			b.get();
+			c.get();
+		});
 		effect(spy);
 
 		expect(spy).toHaveBeenCalledTimes(1);

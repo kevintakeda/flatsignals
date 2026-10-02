@@ -1,13 +1,13 @@
 {
-  "compilerOptions": {
-    "jsx": "react",
-    "target": "ESNext",
-    "moduleResolution": "NodeNext",
-    "module": "NodeNext",
-    "strict": true,
-    "types": ["vitest/globals"],
-    "stripInternal": true
-  },
-  "include": ["src", "tests"],
-  "exclude": ["dist", "node_modules"]
+	"compilerOptions": {
+		"jsx": "react",
+		"target": "ESNext",
+		"moduleResolution": "NodeNext",
+		"module": "NodeNext",
+		"strict": true,
+		"types": ["vitest/globals"],
+		"stripInternal": true
+	},
+	"include": ["src", "tests"],
+	"exclude": ["dist", "node_modules"]
 }

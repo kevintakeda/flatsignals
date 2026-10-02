@@ -2,10 +2,10 @@
 
 let BATCHING = false,
 	UNTRACK = false,
+	PASS = 0,
 	ROOT: FlatRoot | null = null,
 	COMPUTED: FlatCompute | null = null,
-	ROOT_QUEUE: Array<FlatRoot> | null = null,
-	SCOPE: Array<FlatRoot> | null = null;
+	ROOT_QUEUE: Array<FlatRoot> | null = null;
 
 export class FlatRoot {
 	/** @internal computeds */
@@ -16,15 +16,15 @@ export class FlatRoot {
 	#batch: number = 0;
 
 	constructor(public autoFlush = true) {
-		SCOPE?.push(this);
+		const owner = COMPUTED;
+		if (owner) {
+			owner._k ??= [];
+			owner._k.push(this);
+		}
 	}
 
 	dispose() {
-		const items = this._c;
-		this._c = [];
-		items.forEach((el) => {
-			el.dispose(false);
-		});
+		while (this._c.length) this._c[0].dispose();
 	}
 
 	/** @internal Add source */
@@ -62,11 +62,12 @@ export class FlatRoot {
 		if (!this.#batch) return;
 		const currentBatch = this.#batch;
 		this.#batch = 0;
+		PASS++;
 
 		for (const item of this._c) {
 			if (item._s & currentBatch) {
 				item._x = true;
-				if (item._e) item.get();
+				if (item._e && item._p < PASS) item.get();
 			}
 		}
 	}
@@ -120,6 +121,10 @@ export class FlatCompute<T = unknown> {
 	_d = false;
 	/** @internal index */
 	_i!: number;
+	/** @internal owned computes and roots */
+	_k: Array<FlatCompute | FlatRoot> | null = null;
+	/** @internal last run pass */
+	_p = 0;
 
 	constructor(
 		// biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
@@ -135,8 +140,14 @@ export class FlatCompute<T = unknown> {
 		this.#fn = compute;
 		this.#val = val!;
 		this._i = this.#root._a(this as FlatCompute<unknown>);
+		const owner = COMPUTED;
+		if (owner) {
+			owner._k ??= [];
+			owner._k.push(this as FlatCompute<unknown>);
+		}
 		if (effect) {
 			this._e = effect;
+			this._p = PASS;
 			this.get();
 		}
 	}
@@ -144,6 +155,8 @@ export class FlatCompute<T = unknown> {
 	get(): T {
 		const prevCurrent = COMPUTED;
 		if (this._x) {
+			// disposes whatever the previous run of this node owned
+			this.#d();
 			if (this._e) (this.#val as (() => void) | undefined)?.();
 			COMPUTED = this as FlatCompute<unknown>;
 			this._s = 0;
@@ -151,7 +164,7 @@ export class FlatCompute<T = unknown> {
 			this._x = false;
 			COMPUTED = prevCurrent;
 		}
-		if (prevCurrent && !UNTRACK) {
+		if (prevCurrent && !UNTRACK && !this._e) {
 			prevCurrent._s |= this._s;
 		}
 		return this.#val!;
@@ -165,13 +178,25 @@ export class FlatCompute<T = unknown> {
 		return this.#root;
 	}
 
-	dispose(detach: boolean = true) {
+	dispose() {
 		if (this._d) return;
+		this.#d();
 		if (this._e) (this.#val as (() => void) | undefined)?.();
 		this._s = 0;
 		this._x = false;
 		this._d = true;
-		if (detach) this.#root._d(this._i);
+		this.#root._d(this._i);
+	}
+
+	/** @internal dispose owned */
+	#d() {
+		const owned = this._k;
+		if (owned) {
+			this._k = null;
+			owned.forEach((el) => {
+				el.dispose();
+			});
+		}
 	}
 }
 
@@ -192,14 +217,6 @@ export function runWithRoot<T>(fn: () => T, root: FlatRoot): T {
 	ROOT = root;
 	const result = fn();
 	ROOT = prevRoot;
-	return result;
-}
-
-export function scoped<T>(fn: () => T, scope: Array<FlatRoot>): T {
-	const prev = SCOPE;
-	SCOPE = scope;
-	const result = fn();
-	SCOPE = prev;
 	return result;
 }
 
@@ -228,5 +245,5 @@ export function computed<T>(val: () => T): FlatCompute<T> {
 // biome-ignore lint/suspicious/noConfusingVoidType: void is necessary here
 export function effect(fn: () => void | (() => void)): () => void {
 	const sig = new FlatCompute(fn, undefined, true);
-	return sig.dispose.bind(sig, true);
+	return sig.dispose.bind(sig);
 }

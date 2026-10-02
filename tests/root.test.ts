@@ -48,7 +48,7 @@ test("should dispose of inner computations", () => {
 	expect(_memo).toHaveBeenCalledTimes(1);
 	expect(_effect).toHaveBeenCalledTimes(1);
 
-	$x!.set(50);
+	$x.set(50);
 
 	// expect($y!.get()).toBe(null);
 	expect(_memo).toHaveBeenCalledTimes(1);
@@ -139,9 +139,11 @@ test("runWithRoot", () => {
 		expect(spyEffectCalled).toHaveBeenCalledTimes(3);
 		expect(inner).toHaveBeenCalledTimes(2);
 
+		// the inner-root effect is owned by the outer effect that created
+		// it, so the re-run above disposed it and updateInner is now dead
 		updateInner();
 
 		expect(spyEffectCalled).toHaveBeenCalledTimes(3);
-		expect(inner).toHaveBeenCalledTimes(3);
+		expect(inner).toHaveBeenCalledTimes(2);
 	}, new FlatRoot());
 });

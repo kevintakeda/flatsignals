@@ -40,5 +40,5 @@ test("set with equal value triggers no reaction (defaultEquality)", () => {
 		a.set(0); // same value — defaultEquality returns true, no update
 		expect(a.get()).toBe(0);
 		expect(fn).toHaveBeenCalledTimes(0);
-	});
+	}, new FlatRoot());
 });

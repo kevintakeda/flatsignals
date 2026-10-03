@@ -48,6 +48,7 @@ import {
 import { afterEach, bench } from "vitest";
 import {
 	FlatRoot,
+	batch as flatBatch,
 	computed as flatComputed,
 	effect as flatEffect,
 	signal as flatSignal,
@@ -142,7 +143,7 @@ export const FlatSignalsFramework: FrameworkBenchmarkApi = {
 	},
 	effect: (fn) => flatEffect(() => void fn()),
 	runSync: (fn) => {
-		fn(); // by default is sync;
+		flatBatch(fn);
 	},
 	root: (fn) => runWithRoot(fn, new FlatRoot()),
 };

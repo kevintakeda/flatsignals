@@ -205,11 +205,11 @@ export function batch(fn: () => void) {
 	ROOT_QUEUE = [];
 	BATCHING = true;
 	fn();
+	BATCHING = false;
 	ROOT_QUEUE.forEach((R) => {
 		if (R.autoFlush) R.flush();
 	});
 	ROOT_QUEUE = null;
-	BATCHING = false;
 }
 
 export function runWithRoot<T>(fn: () => T, root: FlatRoot): T {

@@ -189,6 +189,25 @@ test("batch does not flush roots with autoFlush disabled", () => {
 	expect(spy).toHaveBeenCalledTimes(1);
 });
 
+test("signal set inside an effect during flush reaches dependent effects", () => {
+	runWithRoot(() => {
+		const a = signal(0);
+		const b = signal(0);
+		const spy = vi.fn(() => void b.get());
+		effect(spy);
+		effect(() => {
+			if (a.get() === 1) b.set(1);
+		});
+		spy.mockClear();
+
+		batch(() => a.set(1));
+
+		expect(a.get()).toBe(1);
+		expect(b.get()).toBe(1);
+		expect(spy).toHaveBeenCalledTimes(1);
+	}, new FlatRoot());
+});
+
 test("batch with computed that reads signals triggers effect once", () => {
 	runWithRoot(() => {
 		const a = signal(2);

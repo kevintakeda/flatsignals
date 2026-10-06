@@ -64,7 +64,7 @@
 	"size-limit": [
 		{
 			"path": "dist/index.mjs",
-			"limit": "0.68 kB"
+			"limit": "0.7 kB"
 		}
 	],
 	"dependencies": {

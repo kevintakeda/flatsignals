@@ -5,7 +5,7 @@ let BATCHING = false,
 	PASS = 0,
 	ROOT: FlatRoot | null = null,
 	COMPUTED: FlatCompute | null = null,
-	ROOT_QUEUE: Array<FlatRoot> | null = null;
+	QUEUE: FlatRoot | null = null;
 
 export class FlatRoot {
 	/** @internal computeds */
@@ -14,6 +14,8 @@ export class FlatRoot {
 	_i = 0;
 	/** @internal batch mask */
 	#batch: number = 0;
+	/** @internal queue link */
+	_n: FlatRoot | null = null;
 
 	constructor(public autoFlush = true) {
 		const owner = COMPUTED;
@@ -51,7 +53,8 @@ export class FlatRoot {
 	/** @internal queue */
 	_q(mask: number) {
 		if (BATCHING && !this.#batch) {
-			ROOT_QUEUE?.push(this);
+			this._n = QUEUE;
+			QUEUE = this;
 		}
 		this.#batch |= mask;
 
@@ -160,7 +163,7 @@ export class FlatCompute<T = unknown> {
 			if (this._e) (this.#val as (() => void) | undefined)?.();
 			COMPUTED = this as FlatCompute<unknown>;
 			this._s = 0;
-			this.#val = runWithRoot(() => this.#fn!(), this.#root);
+			this.#val = runWithRoot(this.#fn!, this.#root);
 			this._x = false;
 			COMPUTED = prevCurrent;
 		}
@@ -202,14 +205,17 @@ export class FlatCompute<T = unknown> {
 
 export function batch(fn: () => void) {
 	if (BATCHING) return fn();
-	ROOT_QUEUE = [];
 	BATCHING = true;
 	fn();
 	BATCHING = false;
-	ROOT_QUEUE.forEach((R) => {
+	let R = QUEUE;
+	QUEUE = null;
+	while (R) {
+		const next = R._n;
+		R._n = null;
 		if (R.autoFlush) R.flush();
-	});
-	ROOT_QUEUE = null;
+		R = next;
+	}
 }
 
 export function runWithRoot<T>(fn: () => T, root: FlatRoot): T {
